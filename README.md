@@ -1,70 +1,27 @@
 <div align="center">
-  <img width="150" height="150" src="/assets/icon.png" alt="Ora Browser logo">
-  <h1>Ora Browser</h1>
-  <p>Fast, native WebKit browser for macOS.</p>
-  <a href="https://vercel.com/oss">
-  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
-</a>
+  <h1>Evo Browser</h1>
+  <p>A personal fork of <a href="https://github.com/the-ora/browser">Ora Browser</a>.</p>
 </div>
-<br/>
-<p align="center">
-  <a href="https://www.apple.com/macos/"><img src="https://badgen.net/badge/macOS/15+/blue" alt="macOS 15+"></a>
-  <a href="https://developer.apple.com/xcode/"><img src="https://badgen.net/badge/Xcode/15+/blue" alt="Xcode 15+"></a>
-  <a href="https://swift.org"><img src="https://badgen.net/badge/Swift/5.9/orange" alt="Swift 5.9"></a>
-  <a href="https://brew.sh"><img src="https://badgen.net/badge/Homebrew/used/yellow" alt="Homebrew"></a>
-  <a href="LICENSE"><img src="https://badgen.net/badge/License/GPL-3.0/green" alt="GPL-3.0"></a>
-</p>
 
 > [!NOTE]
-> Ora is still in active development and is not ready for daily use yet.
+> Evo is an unaffiliated personal fork. It is not endorsed by, supported by, or affiliated with the Ora project or its maintainers. For the upstream project, see [the-ora/browser](https://github.com/the-ora/browser).
 
 ## Overview
 
-Ora is a macOS browser built with SwiftUI, AppKit, and WebKit. The project aims for a native, low-friction browsing experience without layering on unnecessary product surface area.
+Evo is a customized build of Ora Browser — a fast, native macOS browser built on SwiftUI, AppKit, and WebKit — adapted for personal use. The intent is to track upstream Ora closely while layering on private customizations.
 
-## Highlights
+## Build & run
 
-- Native macOS UI
-- WebKit-based browsing
-- Built-in content blocking and privacy protections
-- Search engine customization
-- URL suggestions and quick launcher
-- Developer-focused features
+See [BUILD.md](BUILD.md) for prerequisites and the full reproducible build/test commands.
 
-## Quick Start
+## Fork-specific docs
 
-```bash
-git clone https://github.com/the-ora/browser.git
-cd browser
-./scripts/setup.sh
-open Ora.xcodeproj
-```
+- [BUILD.md](BUILD.md) — build the fork from a fresh clone
+- [FORK_PATCHES.md](FORK_PATCHES.md) — every edit this fork makes to upstream-owned files (the "patch list" to re-apply after rebases)
+- [CONTRIBUTING.md](CONTRIBUTING.md) — upstream's contribution guide (kept for reference; not soliciting external contributions to this fork)
 
-The setup script installs required tooling, installs git hooks, and regenerates the Xcode project.
+## Attribution & license
 
-## Development
+Evo Browser is a derivative work of [Ora Browser](https://github.com/the-ora/browser), licensed under [GPL-3.0](LICENSE). All upstream copyrights are retained. Modifications by SK Productions LLC. Per GPL-3.0, source for any distributed binary remains available under the same license.
 
-- Main app target: `ora`
-- Project configuration is managed with `XcodeGen` in `project.yml`
-- Regenerate the project after config changes with `xcodegen`
-- Run tests in Xcode with `Product > Test` or via `xcodebuild test -scheme ora -destination "platform=macOS"`
-
-## Docs
-
-- [Contributing](CONTRIBUTING.md)
-- [Roadmap](ROADMAP.md)
-- [Wiki](https://github.com/the-ora/browser/wiki)
-- [Security](SECURITY.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-
-## Links
-
-- [Website](https://www.orabrowser.com)
-- [Discord](https://discord.gg/9aZWH52Zjm)
-- [GitHub Sponsors](https://github.com/sponsors/the-ora)
-- [Buy Me a Coffee](https://buymeacoffee.com/orabrowser)
-- [X / Twitter](https://x.com/orabrowser)
-
-## License
-
-Ora Browser is licensed under [GPL-3.0](LICENSE). Third-party libraries used by this project are licensed under their own open-source licenses.
+Third-party libraries used by this project carry their own open-source licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

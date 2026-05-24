@@ -1,6 +1,6 @@
 name: Ora
 options:
-  bundleIdPrefix: com.orabrowser
+  bundleIdPrefix: com.skproductions.evo
 
 packages:
   Sparkle:
@@ -59,12 +59,10 @@ targets:
     info:
       path: ora/Info/Info.plist
       properties:
-        SUFeedURL: "https://the-ora.github.io/browser/appcast.xml"
-        SUPublicEDKey: "Ozj+rezzbJAD76RfajtfQ7rFojJbpFSCl/0DcFSBCTI="
-        SUEnableAutomaticChecks: YES
-        SUEnableInstallerLauncherService: YES
+        SUEnableAutomaticChecks: NO
+        SUEnableInstallerLauncherService: NO
         CFBundleURLTypes:
-          - CFBundleURLName: Ora Browser
+          - CFBundleURLName: Evo Browser
             CFBundleTypeRole: Editor
             LSHandlerRank: Owner
             CFBundleURLSchemes:
@@ -117,32 +115,26 @@ targets:
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: 0.2.14
         CURRENT_PROJECT_VERSION: 105
-        PRODUCT_NAME: Ora
-        PRODUCT_BUNDLE_IDENTIFIER: com.orabrowser.app
+        PRODUCT_NAME: Evo
+        PRODUCT_MODULE_NAME: Ora
+        PRODUCT_BUNDLE_IDENTIFIER: com.skproductions.evobrowser
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        SUFeedURL: "https://the-ora.github.io/browser/appcast.xml"
-        SUPublicEDKey: "Ozj+rezzbJAD76RfajtfQ7rFojJbpFSCl/0DcFSBCTI="
-        SUEnableAutomaticChecks: YES
-        SUEnableInstallerLauncherService: YES
+        SUEnableAutomaticChecks: NO
+        SUEnableInstallerLauncherService: NO
       configs:
         Debug:
           ASSETCATALOG_COMPILER_APPICON_NAME: OraIconDev
           CODE_SIGN_ENTITLEMENTS: ora/Info/ora.entitlements
-          CODE_SIGN_STYLE: Manual
-          CODE_SIGN_IDENTITY: "Developer ID Application"
+          CODE_SIGN_STYLE: Automatic
           EMIT_FRONTEND_COMMAND_LINES: YES
           OTHER_LDFLAGS: "-Xlinker -interposable"
           ENABLE_HARDENED_RUNTIME: NO
-          DEVELOPMENT_TEAM: 3Y566D2A4G
-          PROVISIONING_PROFILE_SPECIFIER: ora-profile-working
         Release:
           ASSETCATALOG_COMPILER_APPICON_NAME: OraIcon
           CODE_SIGN_ENTITLEMENTS: ora/Info/ora.entitlements
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
-          DEVELOPMENT_TEAM: 3Y566D2A4G
-          PROVISIONING_PROFILE_SPECIFIER: ora-profile-working
           ENABLE_HARDENED_RUNTIME: YES
 
   oraTests:
@@ -155,7 +147,7 @@ targets:
       - target: ora
     settings:
       base:
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Ora.app/Contents/MacOS/Ora"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Evo.app/Contents/MacOS/Evo"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:

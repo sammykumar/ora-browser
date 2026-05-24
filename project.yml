@@ -106,8 +106,10 @@ targets:
         com.apple.security.temporary-exception.mach-lookup.global-name:
           - "$(PRODUCT_BUNDLE_IDENTIFIER)-spks"
           - "$(PRODUCT_BUNDLE_IDENTIFIER)-spki"
-        com.apple.developer.web-browser: true
-        com.apple.developer.web-browser.public-key-credential: true
+        # com.apple.developer.web-browser and .public-key-credential are Apple-restricted
+        # entitlements (default-browser registration + native passkey/WebAuthn provider).
+        # Removed so automatic signing works without filing Request Access forms.
+        # Re-add both if/when Apple approves access for this team.
 
     settings:
       base:

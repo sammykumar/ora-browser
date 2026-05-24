@@ -30,6 +30,8 @@ Upstream defines code signing for **the Ora team** and Sparkle auto-update point
 | `targets.ora.settings.configs.Release.DEVELOPMENT_TEAM` | `3Y566D2A4G` | *(removed)* | TBD — fill in our team if/when we do signed releases |
 | `targets.ora.settings.configs.Release.PROVISIONING_PROFILE_SPECIFIER` | `ora-profile-working` | *(removed)* | TBD |
 | `targets.oraTests.settings.base.TEST_HOST` | `$(BUILT_PRODUCTS_DIR)/Ora.app/Contents/MacOS/Ora` | `$(BUILT_PRODUCTS_DIR)/Evo.app/Contents/MacOS/Evo` | Match new `PRODUCT_NAME` |
+| `targets.ora.entitlements.properties.com.apple.developer.web-browser` | `true` | *(removed)* | Apple-restricted entitlement (default-browser registration). Blocks automatic signing until Apple approves a Request Access form. Re-add after approval. |
+| `targets.ora.entitlements.properties.com.apple.developer.web-browser.public-key-credential` | `true` | *(removed)* | Apple-restricted entitlement (native passkey/WebAuthn provider). Same blocker as above. Re-add after approval. |
 
 Things deliberately **not** patched (kept as upstream):
 

@@ -175,7 +175,7 @@ struct OraCommands: Commands {
         }
 
         CommandGroup(replacing: .appInfo) {
-            Button("About Ora") { showAboutWindow() }
+            Button("About Evo") { showAboutWindow() }
             Button("Check for Updates") {
                 NotificationCenter.default.post(
                     name: .checkForUpdates,
@@ -196,13 +196,13 @@ struct OraCommands: Commands {
 
     private func showAboutWindow() {
         let alert = NSAlert()
-        alert.messageText = "Ora Browser"
+        alert.messageText = "Evo Browser"
         alert.informativeText = """
         Version \(getAppVersion())
 
         Fast, secure, and beautiful browser built for macOS.
 
-        © 2025 Ora Browser
+        © 2025 SK Productions LLC
         """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")

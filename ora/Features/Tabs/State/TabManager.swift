@@ -444,8 +444,8 @@ class TabManager: ObservableObject {
 
     func togglePiP(_ currentTab: Tab?, _ oldTab: Tab?) {
         if currentTab?.id != oldTab?.id, SettingsStore.shared.autoPiPEnabled {
-            currentTab?.evaluateJavaScript("window.__oraTriggerPiP(true)")
-            oldTab?.evaluateJavaScript("window.__oraTriggerPiP()")
+            currentTab?.evaluateJavaScript("window.__evoTriggerPiP(true)")
+            oldTab?.evaluateJavaScript("window.__evoTriggerPiP()")
         }
     }
 

@@ -92,10 +92,10 @@ struct FingerprintingProtectionProfile: Equatable {
 
         return """
         (function () {
-            if (window.__oraFingerprintingProtectionInstalled) {
+            if (window.__evoFingerprintingProtectionInstalled) {
                 return;
             }
-            window.__oraFingerprintingProtectionInstalled = true;
+            window.__evoFingerprintingProtectionInstalled = true;
 
             const profile = \(profileJSON);
 
@@ -132,8 +132,8 @@ struct FingerprintingProtectionProfile: Equatable {
             function makeDevice(kind, index) {
                 const suffix = String(index + 1);
                 const device = {
-                    deviceId: 'ora-' + kind + '-' + suffix,
-                    groupId: 'ora-group-' + kind,
+                    deviceId: 'evo-' + kind + '-' + suffix,
+                    groupId: 'evo-group-' + kind,
                     kind: kind,
                     label: '',
                     toJSON: function () {
@@ -373,9 +373,9 @@ struct FingerprintingProtectionProfile: Equatable {
 
 final class BrowserPrivacyService {
     private enum StaticRuleListIdentifier: String {
-        case trackers = "com.orabrowser.privacy.trackers.v1"
-        case thirdPartyCookies = "com.orabrowser.privacy.cookies.third-party.v1"
-        case allCookies = "com.orabrowser.privacy.cookies.all.v1"
+        case trackers = "com.skproductions.evobrowser.privacy.trackers.v1"
+        case thirdPartyCookies = "com.skproductions.evobrowser.privacy.cookies.third-party.v1"
+        case allCookies = "com.skproductions.evobrowser.privacy.cookies.all.v1"
     }
 
     static let shared = BrowserPrivacyService()
@@ -432,7 +432,7 @@ final class BrowserPrivacyService {
 
         return [
             BrowserUserScript(
-                name: "ora-fingerprinting-protection",
+                name: "evo-fingerprinting-protection",
                 source: fingerprintingProtectionScriptSource(),
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: false

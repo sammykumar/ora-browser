@@ -42,11 +42,11 @@ enum OraBrowserScripts {
 
     private static let bridgeScript = """
     (function () {
-        if (window.__oraBridge && typeof window.__oraBridge.postMessage === 'function') {
+        if (window.__evoBridge && typeof window.__evoBridge.postMessage === 'function') {
             return;
         }
 
-        window.__oraBridge = {
+        window.__evoBridge = {
             postMessage: function(name, payload) {
                 try {
                     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
@@ -67,7 +67,7 @@ enum OraBrowserScripts {
 
         function post(name, payload) {
             try {
-                window.__oraBridge && window.__oraBridge.postMessage(name, payload);
+                window.__evoBridge && window.__evoBridge.postMessage(name, payload);
             } catch (error) {}
         }
 
@@ -110,14 +110,14 @@ enum OraBrowserScripts {
     })();
 
     (function () {
-        if (window.__oraMediaInstalled) {
+        if (window.__evoMediaInstalled) {
             return;
         }
-        window.__oraMediaInstalled = true;
+        window.__evoMediaInstalled = true;
 
         function post(payload) {
             try {
-                window.__oraBridge && window.__oraBridge.postMessage('mediaEvent', JSON.stringify(payload));
+                window.__evoBridge && window.__evoBridge.postMessage('mediaEvent', JSON.stringify(payload));
             } catch (error) {}
         }
 
@@ -159,7 +159,7 @@ enum OraBrowserScripts {
 
         const stateFrom = (element) => ({
             type: 'state',
-            wasPlayed: element && element.__oraWasPlayed,
+            wasPlayed: element && element.__evoWasPlayed,
             state: element && !element.paused ? 'playing' : 'paused',
             volume: element ? (element.muted ? 0 : element.volume) : undefined,
             title: document.title
@@ -182,12 +182,12 @@ enum OraBrowserScripts {
         }
 
         function attach(element) {
-            if (!element || element.__oraAttached) return;
-            element.__oraAttached = true;
+            if (!element || element.__evoAttached) return;
+            element.__evoAttached = true;
             const update = () => post(stateFrom(element));
             element.addEventListener('play', () => {
                 update();
-                element.__oraWasPlayed = true;
+                element.__evoWasPlayed = true;
             });
             element.addEventListener('pause', update);
             element.addEventListener('ended', () => post({ type: 'ended' }));
@@ -195,7 +195,7 @@ enum OraBrowserScripts {
                 post({ type: 'volume', volume: element.muted ? 0 : element.volume })
             );
             if (!element.paused) {
-                element.__oraWasPlayed = true;
+                element.__evoWasPlayed = true;
                 update();
             }
             watchRemoval(element, () => post({ type: 'removed' }));
@@ -210,7 +210,7 @@ enum OraBrowserScripts {
         observer.observe(document.documentElement, { childList: true, subtree: true });
         scan();
 
-        window.__oraMedia = {
+        window.__evoMedia = {
             active: null,
             _pick() {
                 const elements = Array.from(document.querySelectorAll('video, audio'));
@@ -269,7 +269,7 @@ enum OraBrowserScripts {
             }
         };
 
-        window.__oraTriggerPiP = function(isActive = false) {
+        window.__evoTriggerPiP = function(isActive = false) {
             const video = document.querySelector('video');
 
             function hasAudio(target) {

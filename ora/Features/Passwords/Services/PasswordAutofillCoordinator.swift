@@ -500,8 +500,8 @@ final class PasswordAutofillCoordinator {
         }
 
         let script = """
-        if (window.__oraPasswordManager && typeof window.__oraPasswordManager.\(scriptMethod) === 'function') {
-            window.__oraPasswordManager.\(scriptMethod)(\(payloadString));
+        if (window.__evoPasswordManager && typeof window.__evoPasswordManager.\(scriptMethod) === 'function') {
+            window.__evoPasswordManager.\(scriptMethod)(\(payloadString));
         }
         """
         tab?.evaluateJavaScript(script)

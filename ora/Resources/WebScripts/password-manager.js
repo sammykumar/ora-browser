@@ -1,8 +1,8 @@
 (function () {
-    if (window.__oraPasswordManagerInstalled) {
+    if (window.__evoPasswordManagerInstalled) {
         return;
     }
-    window.__oraPasswordManagerInstalled = true;
+    window.__evoPasswordManagerInstalled = true;
 
     const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.passwordManager;
     if (!handler) {
@@ -25,13 +25,13 @@
         if (!element) {
             return null;
         }
-        if (!element.dataset.oraPasswordFieldId) {
+        if (!element.dataset.evoPasswordFieldId) {
             const random = window.crypto && window.crypto.randomUUID
                 ? window.crypto.randomUUID()
                 : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-            element.dataset.oraPasswordFieldId = `ora-password-${random}`;
+            element.dataset.evoPasswordFieldId = `evo-password-${random}`;
         }
-        return element.dataset.oraPasswordFieldId;
+        return element.dataset.evoPasswordFieldId;
     }
 
     function isVisible(element) {
@@ -344,11 +344,11 @@
         }
 
         if (window.CSS && typeof window.CSS.escape === "function") {
-            return document.querySelector(`[data-ora-password-field-id="${window.CSS.escape(fieldID)}"]`);
+            return document.querySelector(`[data-evo-password-field-id="${window.CSS.escape(fieldID)}"]`);
         }
 
-        return Array.from(document.querySelectorAll("[data-ora-password-field-id]"))
-            .find((element) => element.dataset.oraPasswordFieldId === fieldID) || null;
+        return Array.from(document.querySelectorAll("[data-evo-password-field-id]"))
+            .find((element) => element.dataset.evoPasswordFieldId === fieldID) || null;
     }
 
     function submitFilledForm(request) {
@@ -376,7 +376,7 @@
         }, 0);
     }
 
-    window.__oraPasswordManager = {
+    window.__evoPasswordManager = {
         fillCredentials(payload) {
             const request = typeof payload === "string" ? JSON.parse(payload) : payload;
             const highlightColor = request.highlightColor || "#E8F5E9";

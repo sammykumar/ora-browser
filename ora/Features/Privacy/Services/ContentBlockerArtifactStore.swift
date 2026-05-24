@@ -10,13 +10,13 @@ final class ContentBlockerArtifactStore {
 
     private let fileManager: FileManager
     private let baseURL: URL
-    private let identifierPrefix = "com.orabrowser.adblock"
+    private let identifierPrefix = "com.skproductions.evobrowser.adblock"
 
     init(fileManager: FileManager = .default, baseURL: URL? = nil) {
         self.fileManager = fileManager
         self.baseURL = baseURL ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first!
-            .appendingPathComponent("Ora", isDirectory: true)
+            .appendingPathComponent("Evo", isDirectory: true)
             .appendingPathComponent("ContentBlockers", isDirectory: true)
 
         try? fileManager.createDirectory(at: self.baseURL, withIntermediateDirectories: true, attributes: nil)

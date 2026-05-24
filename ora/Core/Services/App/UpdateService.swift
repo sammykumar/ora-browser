@@ -2,7 +2,7 @@ import os.log
 import Sparkle
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.orabrowser.ora", category: "UpdateService")
+private let logger = Logger(subsystem: "com.skproductions.evobrowser", category: "UpdateService")
 
 class UpdateService: NSObject, ObservableObject {
     static let shared = UpdateService()
@@ -81,7 +81,9 @@ class UpdateService: NSObject, ObservableObject {
 
 extension UpdateService: SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? {
-        return "https://the-ora.github.io/browser/appcast.xml"
+        // Sparkle is disabled on this fork (see FORK_PATCHES.md). Return nil so even if updater wiring
+        // is re-enabled accidentally, it does not fetch from the upstream Ora appcast.
+        return nil
     }
 
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {

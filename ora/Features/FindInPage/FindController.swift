@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "com.orabrowser.ora", category: "FindController")
+private let logger = Logger(subsystem: "com.skproductions.evobrowser", category: "FindController")
 
 class FindController: NSObject {
     let page: BrowserPage

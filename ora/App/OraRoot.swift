@@ -41,7 +41,7 @@ struct OraRoot: View {
             container = try ModelConfiguration.createOraContainer(isPrivate: isPrivate)
             modelContext = ModelContext(container)
         } catch {
-            deleteSwiftDataStore("OraData.sqlite")
+            deleteSwiftDataStore("EvoData.sqlite")
             fatalError("Failed to initialize ModelContainer: \(error)")
         }
 
@@ -156,7 +156,7 @@ struct OraRoot: View {
                         return
                     }
                     dialogManager.confirm(
-                        title: "Quit Ora?",
+                        title: "Quit Evo?",
                         message: "Are you sure you want to quit?",
                         iconImage: Image("OraColorLogo"),
                         confirmLabel: "Quit",

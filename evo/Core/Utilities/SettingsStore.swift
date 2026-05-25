@@ -267,7 +267,7 @@ class SettingsStore: ObservableObject {
     init() {
         autoUpdateEnabled = defaults.bool(forKey: autoUpdateKey)
         blockThirdPartyTrackers = defaults.bool(forKey: trackingThirdPartyKey)
-        blockFingerprinting = defaults.object(forKey: fingerprintingKey) as? Bool ?? true
+        blockFingerprinting = defaults.object(forKey: fingerprintingKey) as? Bool ?? false
         adBlocking = defaults.bool(forKey: adBlockingKey)
         if let raw = defaults.string(forKey: cookiesPolicyKey),
            let policy = CookiesPolicy(rawValue: raw)

@@ -162,6 +162,10 @@ class SettingsStore: ObservableObject {
     private let passwordAutofillSubmitEnabledKey = "settings.passwords.autofillSubmitEnabled"
     private let passwordSavePromptsEnabledKey = "settings.passwords.savePromptsEnabled"
     private let suppressedPasswordSavePromptHostsKey = "settings.passwords.suppressedSavePromptHosts"
+    private let settingsFontScaleKey = "settings.ui.settingsFontScale"
+
+    static let settingsFontScaleRange: ClosedRange<Double> = 0.8 ... 1.5
+    static let settingsFontScaleStep: Double = 0.1
 
     // MARK: - Per-Container
 
@@ -264,6 +268,10 @@ class SettingsStore: ObservableObject {
         ) }
     }
 
+    @Published var settingsFontScale: Double {
+        didSet { defaults.set(settingsFontScale, forKey: settingsFontScaleKey) }
+    }
+
     init() {
         autoUpdateEnabled = defaults.bool(forKey: autoUpdateKey)
         blockThirdPartyTrackers = defaults.bool(forKey: trackingThirdPartyKey)
@@ -335,6 +343,14 @@ class SettingsStore: ObservableObject {
         passwordSavePromptsEnabled = defaults.object(forKey: passwordSavePromptsEnabledKey) as? Bool ?? true
         suppressedPasswordSavePromptHosts = Set(defaults
             .stringArray(forKey: suppressedPasswordSavePromptHostsKey) ?? [])
+
+        let rawFontScale = defaults.object(forKey: settingsFontScaleKey) as? Double ?? 1.0
+        settingsFontScale = Self.clampFontScale(rawFontScale)
+    }
+
+    private static func clampFontScale(_ value: Double) -> Double {
+        let rounded = (value / settingsFontScaleStep).rounded() * settingsFontScaleStep
+        return min(max(rounded, settingsFontScaleRange.lowerBound), settingsFontScaleRange.upperBound)
     }
 
     // MARK: - Per-container helpers

@@ -34,7 +34,10 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            AppearanceSelector(selection: $appearanceManager.appearance)
+            AppearanceSelector(
+                selection: $appearanceManager.appearance,
+                fontScale: $settings.settingsFontScale
+            )
 
             SettingsCard(header: "Tab Management") {
                 VStack(alignment: .leading, spacing: 8) {

@@ -45,9 +45,12 @@ enum SettingsTab: String, Hashable, CaseIterable {
 }
 
 struct SettingsWindowRoot: View {
+    @StateObject private var settings = SettingsStore.shared
+
     var body: some View {
         SettingsContentView()
             .environmentObject(ToastManager.shared)
+            .dynamicTypeSize(settings.settingsFontScale.asSettingsDynamicTypeSize)
     }
 }
 

@@ -24,8 +24,8 @@
               }
             }
           ],
-          "image-name" : "OraLogo.svg",
-          "name" : "OraLogo",
+          "image-name" : "EvoLogo.svg",
+          "name" : "EvoLogo",
           "opacity-specializations" : [
             {
               "appearance" : "tinted",
@@ -73,8 +73,8 @@
               }
             }
           ],
-          "image-name" : "momento.svg",
-          "name" : "momento",
+          "image-name" : "EvoAccents.svg",
+          "name" : "EvoAccents",
           "opacity-specializations" : [
             {
               "value" : 0.2

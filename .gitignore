@@ -50,6 +50,9 @@ Temporary Items
 .zed/
 browser.wiki/
 
+# Local scratch (fork-only — not in upstream)
+tmp/
+
 # Build directory (allow directory but ignore contents)
 build/*
 !build/

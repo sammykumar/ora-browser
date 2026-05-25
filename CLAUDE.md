@@ -41,7 +41,7 @@ If you find yourself about to suggest "what if we rewrote this in X" or "have yo
 
 ## Commands
 
-The project is XcodeGen-driven. `Ora.xcodeproj` is generated and gitignored.
+The project is XcodeGen-driven. `Evo.xcodeproj` is generated and gitignored.
 
 ```bash
 # One-time / after editing project.yml
@@ -49,19 +49,19 @@ xcodegen
 
 # Build (debug, unsigned) — primary local-dev path
 ./scripts/xcbuild-debug.sh
-# → ~/Library/Developer/Xcode/DerivedData/Ora-*/Build/Products/Debug/Evo.app
+# → ~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app
 
 # Run
-open ~/Library/Developer/Xcode/DerivedData/Ora-*/Build/Products/Debug/Evo.app
+open ~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app
 
 # Tests (xcodebuild)
-xcodebuild test -scheme ora -destination "platform=macOS" -configuration Debug \
+xcodebuild test -scheme evo -destination "platform=macOS" -configuration Debug \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
 
 # Single test (Xcode test identifier syntax: Target/Class/method)
-xcodebuild test -scheme ora -destination "platform=macOS" -configuration Debug \
+xcodebuild test -scheme evo -destination "platform=macOS" -configuration Debug \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
-  -only-testing:oraTests/OraTests/testExample
+  -only-testing:evoTests/OraTests/testExample
 
 # Lint / format (matches what lefthook would run pre-commit if enabled)
 swiftformat .
@@ -69,7 +69,7 @@ swiftlint lint --use-alternative-excluding
 swiftlint lint --fix --use-alternative-excluding
 ```
 
-`./scripts/build.sh`, `release.sh`, `publish.sh` are upstream's signed-release / DMG / Sparkle / notarization pipeline — they still reference `com.orabrowser.app` and **are not safe to run as-is** on this fork. See `BUILD.md` and `FORK_PATCHES.md` for details.
+`./scripts/build.sh`, `release.sh`, `publish.sh` are upstream's signed-release / DMG / Sparkle / notarization pipeline — they still reference `com.orabrowser.app`, the now-renamed `ora/` directory, and the Ora team signing identity. **They are not safe to run as-is** on this fork. See `BUILD.md` and `FORK_PATCHES.md` for details.
 
 Force-quit the running app (e.g. when first-launch dialogs block `osascript quit`):
 
@@ -77,25 +77,23 @@ Force-quit the running app (e.g. when first-launch dialogs block `osascript quit
 pkill -f "Evo.app/Contents/MacOS/Evo"
 ```
 
-## Test layout gotcha
+## Test layout
 
-`oraTests/` is the only test target declared in `project.yml`. The `oraUITests/` directory at the repo root is a vestigial upstream stub — **not** declared as a target, not built, not run. Don't add tests there expecting them to execute.
-
-The Swift module name is pinned to `Ora` (via `PRODUCT_MODULE_NAME` in `project.yml`) specifically so upstream's `@testable import Ora` keeps compiling without us editing test files. Don't "fix" the apparent inconsistency between target name `ora`, product name `Evo`, and module name `Ora` — each is deliberate (see `FORK_PATCHES.md`).
+`evoTests/` is the only test target declared in `project.yml`. The Swift test classes themselves keep their upstream `OraTests` / file-header names (internal-only) but the test files now `@testable import Evo` (matching the renamed module).
 
 ## Source layout
 
-All app source lives in `ora/` (path preserved for upstream-merge friction). High-level structure:
+All app source lives in `evo/`. High-level structure:
 
-- `ora/App/` — `@main` entry point (`OraApp`), `AppDelegate`, `OraRoot` (the per-window scene root), `OraCommands` (menu bar).
-- `ora/Core/` — engine and cross-feature services.
+- `evo/App/` — `@main` entry point (`OraApp`), `AppDelegate`, `OraRoot` (the per-window scene root), `OraCommands` (menu bar). Type names are kept as `Ora*` internally — see [FORK_PATCHES.md](FORK_PATCHES.md) for the internal-vs-user-facing naming policy.
+- `evo/Core/` — engine and cross-feature services.
   - `BrowserEngine/` — `BrowserEngine` (singleton) + per-`TabContainer` `BrowserEngineProfile`s wrapping `WKWebsiteDataStore`. `BrowserPage` is the WKWebView wrapper; `BrowserPageView` bridges it into SwiftUI.
   - `Services/App/` — singletons: `AppearanceManager`, `UpdateService` (Sparkle), `DefaultBrowserManager`, `CustomKeyboardShortcutManager`, `KeyModifierListener`.
   - `Extensions/ModelConfiguration+Shared.swift` — **single source of truth** for the SwiftData container. Schema is `[TabContainer, History, Download]`; private windows get an in-memory configuration.
-- `ora/Features/` — feature folders (`Browser`, `Tabs`, `Sidebar`, `Launcher`, `Settings`, `History`, `Downloads`, `Search`, `FindInPage`, `Importer`, `Passwords`, `Player`, `Privacy`). Each typically has `Models/`, `State/` (the `ObservableObject` managers), and `Views/`.
-- `ora/Shared/` — reusable UI primitives (`Components`, `Layout/SplitView` is vendored upstream code, `Modifiers`, `Shapes`, `EmojiPicker`).
-- `ora/Resources/WebScripts/` — JavaScript injected into pages via `BrowserUserScript`.
-- `ora/Info/` — `Info.plist`, entitlements (`ora.entitlements`).
+- `evo/Features/` — feature folders (`Browser`, `Tabs`, `Sidebar`, `Launcher`, `Settings`, `History`, `Downloads`, `Search`, `FindInPage`, `Importer`, `Passwords`, `Player`, `Privacy`). Each typically has `Models/`, `State/` (the `ObservableObject` managers), and `Views/`.
+- `evo/Shared/` — reusable UI primitives (`Components`, `Layout/SplitView` is vendored upstream code, `Modifiers`, `Shapes`, `EmojiPicker`).
+- `evo/Resources/WebScripts/` — JavaScript injected into pages via `BrowserUserScript`.
+- `evo/Info/` — `Info.plist`, entitlements (`ora.entitlements` — file name kept).
 
 ## Architecture notes worth knowing before editing
 

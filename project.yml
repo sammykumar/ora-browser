@@ -1,4 +1,4 @@
-name: Ora
+name: Evo
 options:
   bundleIdPrefix: com.skproductions.evo
 
@@ -17,17 +17,17 @@ packages:
     exactVersion: 4.2.2
 
 targets:
-  ora:
+  evo:
     type: application
     platform: "macOS"
     deploymentTarget: "15.0"
     sources:
-      - path: ora
+      - path: evo
         excludes:
           - "Assets/Icons/**"
     resources:
-      - path: ora/Shared/EmojiPicker/emoji-set.json
-      - path: ora/Resources
+      - path: evo/Shared/EmojiPicker/emoji-set.json
+      - path: evo/Resources
         optional: true
     dependencies:
       - package: Sparkle
@@ -39,14 +39,14 @@ targets:
     preBuildScripts:
       - name: "Copy Icon Bundle"
         inputFiles:
-          - "$(SRCROOT)/ora/Assets/Icons/OraIcon.icon"
-          - "$(SRCROOT)/ora/Assets/Icons/OraIconDev.icon"
+          - "$(SRCROOT)/evo/Assets/Icons/OraIcon.icon"
+          - "$(SRCROOT)/evo/Assets/Icons/OraIconDev.icon"
         outputFiles:
           - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/OraIcon.icon"
           - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/OraIconDev.icon"
         script: |
-          ICON_SRC_DEV="$SRCROOT/ora/Assets/Icons/OraIconDev.icon"
-          ICON_SRC_RELEASE="$SRCROOT/ora/Assets/Icons/OraIcon.icon"
+          ICON_SRC_DEV="$SRCROOT/evo/Assets/Icons/OraIconDev.icon"
+          ICON_SRC_RELEASE="$SRCROOT/evo/Assets/Icons/OraIcon.icon"
           ICON_DST="$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/"
           if [ "$CONFIGURATION" = "Debug" ]; then
               echo "Using OraIconDev.icon for Debug build"
@@ -57,7 +57,7 @@ targets:
           fi
 
     info:
-      path: ora/Info/Info.plist
+      path: evo/Info/Info.plist
       properties:
         SUEnableAutomaticChecks: NO
         SUEnableInstallerLauncherService: NO
@@ -90,7 +90,7 @@ targets:
         LSApplicationCategoryType: public.app-category.web-browser
 
     entitlements:
-      path: ora/Info/ora.entitlements
+      path: evo/Info/ora.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.assets.movies.read-only: true
@@ -118,7 +118,6 @@ targets:
         MARKETING_VERSION: 0.2.14
         CURRENT_PROJECT_VERSION: 105
         PRODUCT_NAME: Evo
-        PRODUCT_MODULE_NAME: Ora
         PRODUCT_BUNDLE_IDENTIFIER: com.skproductions.evobrowser
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -127,43 +126,43 @@ targets:
       configs:
         Debug:
           ASSETCATALOG_COMPILER_APPICON_NAME: OraIconDev
-          CODE_SIGN_ENTITLEMENTS: ora/Info/ora.entitlements
+          CODE_SIGN_ENTITLEMENTS: evo/Info/ora.entitlements
           CODE_SIGN_STYLE: Automatic
           EMIT_FRONTEND_COMMAND_LINES: YES
           OTHER_LDFLAGS: "-Xlinker -interposable"
           ENABLE_HARDENED_RUNTIME: NO
         Release:
           ASSETCATALOG_COMPILER_APPICON_NAME: OraIcon
-          CODE_SIGN_ENTITLEMENTS: ora/Info/ora.entitlements
+          CODE_SIGN_ENTITLEMENTS: evo/Info/ora.entitlements
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           ENABLE_HARDENED_RUNTIME: YES
 
-  oraTests:
+  evoTests:
     type: bundle.unit-test
     platform: "macOS"
     deploymentTarget: "15.0"
     sources:
-      - path: oraTests
+      - path: evoTests
     dependencies:
-      - target: ora
+      - target: evo
     settings:
       base:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Evo.app/Contents/MacOS/Evo"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
-  ora:
+  evo:
     shared: true
     build:
       targets:
-        ora: all
+        evo: all
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - oraTests
+        - evoTests
     profile:
       config: Release
     analyze:

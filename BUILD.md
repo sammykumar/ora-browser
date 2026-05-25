@@ -20,7 +20,7 @@ brew install xcodegen swiftlint swiftformat xcbeautify
 xcodegen
 ```
 
-`xcodegen` reads `project.yml` and writes `Ora.xcodeproj` (gitignored). Re-run it whenever `project.yml` changes.
+`xcodegen` reads `project.yml` and writes `Evo.xcodeproj` (gitignored). Re-run it whenever `project.yml` changes.
 
 > **Note on git hooks:** upstream's `./scripts/setup.sh` also installs `lefthook` git hooks (swiftformat + swiftlint pre-commit, debug build pre-push). This fork intentionally skips them. To opt back in later: `brew install lefthook && lefthook install`.
 
@@ -33,22 +33,22 @@ xcodegen
 That wraps:
 
 ```bash
-xcodebuild build -scheme ora -destination "platform=macOS" -configuration Debug \
+xcodebuild build -scheme evo -destination "platform=macOS" -configuration Debug \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | xcbeautify
 ```
 
 Output bundle:
 
 ```
-~/Library/Developer/Xcode/DerivedData/Ora-*/Build/Products/Debug/Evo.app
+~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app
 ```
 
-The build emits one expected warning — `ora isn't code signed but requires entitlements` (the warning uses the target name, which we deliberately kept as `ora` for upstream-merge friction; the *product* is still `Evo`) — because `project.yml` declares sandbox / network / camera / microphone entitlements but unsigned binaries can't carry them. The app runs fine for local dev; entitlement-gated APIs (sandbox isolation, hardened runtime) are inert.
+The build emits one expected warning — `evo isn't code signed but requires entitlements` — because `project.yml` declares sandbox / network / camera / microphone entitlements but unsigned binaries can't carry them. The app runs fine for local dev; entitlement-gated APIs (sandbox isolation, hardened runtime) are inert.
 
 ## Run
 
 ```bash
-open ~/Library/Developer/Xcode/DerivedData/Ora-*/Build/Products/Debug/Evo.app
+open ~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app
 # or, with a URL:
 open -a "<path-to-Evo.app>" "https://example.com"
 ```
@@ -56,13 +56,11 @@ open -a "<path-to-Evo.app>" "https://example.com"
 ## Test
 
 ```bash
-xcodebuild test -scheme ora -destination "platform=macOS" -configuration Debug \
+xcodebuild test -scheme evo -destination "platform=macOS" -configuration Debug \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
 ```
 
 28 tests across 2 suites (`BrowserPageHostViewTests`, `OraTests`). Runs in ~0.1s. The xcresult bundle lands in DerivedData/Logs/Test.
-
-The `oraUITests/` directory at the repo root is **not** declared as a target in `project.yml`; neither built nor exercised by `xcodebuild test`. Vestigial upstream stub.
 
 ## Quirks worth knowing
 
@@ -97,7 +95,7 @@ Resolved automatically by Xcode/`xcodebuild` from `project.yml`:
 - FaviconFinder 5.1.5
 - SafariConverterLib 4.2.2 — `ContentBlockerConverter` product
 
-The `Vendor/SplitView/` directory holds only a `LICENSE` file — the actual SplitView source is vendored into `ora/Shared/Layout/SplitView/`.
+The `Vendor/SplitView/` directory holds only a `LICENSE` file — the actual SplitView source is vendored into `evo/Shared/Layout/SplitView/`.
 
 ## Reproducible one-liner
 
@@ -105,5 +103,5 @@ The `Vendor/SplitView/` directory holds only a `LICENSE` file — the actual Spl
 brew install xcodegen swiftlint swiftformat xcbeautify \
   && xcodegen \
   && ./scripts/xcbuild-debug.sh \
-  && open ~/Library/Developer/Xcode/DerivedData/Ora-*/Build/Products/Debug/Evo.app
+  && open ~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app
 ```

@@ -5,5 +5,8 @@
       "mcp__claude_ai_Figma__get_screenshot",
       "mcp__claude_ai_Figma__get_design_context"
     ]
+  },
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true
   }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum OraButtonVariant {
+enum EvoButtonVariant {
     case `default`
     case secondary
     case outline
@@ -8,16 +8,16 @@ enum OraButtonVariant {
     case destructive
 }
 
-enum OraButtonSize {
+enum EvoButtonSize {
     case sm
     case md
     case lg
 }
 
-struct OraButton: View {
+struct EvoButton: View {
     let label: String
-    var variant: OraButtonVariant = .default
-    var size: OraButtonSize = .md
+    var variant: EvoButtonVariant = .default
+    var size: EvoButtonSize = .md
     var isDisabled: Bool = false
     var isLoading: Bool = false
     var keyboardShortcut: String?
@@ -172,11 +172,11 @@ struct OraButton: View {
 
 #Preview {
     VStack(alignment: .center, spacing: 24) {
-        OraButton(label: "Primary", keyboardShortcut: "return", action: {})
-        OraButton(label: "Secondary", variant: .secondary, keyboardShortcut: "return", action: {})
-        OraButton(label: "Outline", variant: .outline, keyboardShortcut: "return", action: {})
-        OraButton(label: "Ghost", variant: .ghost, keyboardShortcut: "return", action: {})
-        OraButton(label: "Destructive", variant: .destructive, keyboardShortcut: "return", action: {})
+        EvoButton(label: "Primary", keyboardShortcut: "return", action: {})
+        EvoButton(label: "Secondary", variant: .secondary, keyboardShortcut: "return", action: {})
+        EvoButton(label: "Outline", variant: .outline, keyboardShortcut: "return", action: {})
+        EvoButton(label: "Ghost", variant: .ghost, keyboardShortcut: "return", action: {})
+        EvoButton(label: "Destructive", variant: .destructive, keyboardShortcut: "return", action: {})
     }
     .padding(40)
     .frame(width: 300)

@@ -3,7 +3,7 @@ import SwiftData
 
 extension ModelConfiguration {
     /// Shared model configuration for the main Evo database
-    static func oraDatabase(isPrivate: Bool = false) -> ModelConfiguration {
+    static func evoDatabase(isPrivate: Bool = false) -> ModelConfiguration {
         if isPrivate {
             return ModelConfiguration(isStoredInMemoryOnly: true)
         } else {
@@ -16,10 +16,10 @@ extension ModelConfiguration {
     }
 
     /// Creates a ModelContainer using the standard Evo database configuration
-    static func createOraContainer(isPrivate: Bool = false) throws -> ModelContainer {
+    static func createEvoContainer(isPrivate: Bool = false) throws -> ModelContainer {
         return try ModelContainer(
             for: TabContainer.self, History.self, Download.self,
-            configurations: oraDatabase(isPrivate: isPrivate)
+            configurations: evoDatabase(isPrivate: isPrivate)
         )
     }
 }

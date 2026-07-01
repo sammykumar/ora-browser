@@ -217,7 +217,7 @@ struct PasswordsSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            OraButton(
+            EvoButton(
                 label: isAuthenticating ? "Unlocking..." : "Unlock Passwords",
                 variant: .outline,
                 isDisabled: isAuthenticating,
@@ -370,7 +370,7 @@ struct PasswordsSettingsView: View {
 
     private func copyActionButton(help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            OraIcons(
+            EvoIcons(
                 icon: .copy,
                 size: .custom(14),
                 color: .secondary

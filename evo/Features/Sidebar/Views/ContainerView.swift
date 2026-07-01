@@ -83,7 +83,7 @@ struct ContainerView: View {
                 }
             }
         }
-        .modifier(OraWindowDragGesture(isDragging: $isDragging))
+        .modifier(EvoWindowDragGesture(isDragging: $isDragging))
     }
 
     private var favoriteTabs: [Tab] {
@@ -159,7 +159,7 @@ struct ContainerView: View {
     }
 }
 
-private struct OraWindowDragGesture: ViewModifier {
+private struct EvoWindowDragGesture: ViewModifier {
     @Binding var isDragging: Bool
 
     func body(content: Content) -> some View {

@@ -1,6 +1,6 @@
 import Foundation
 
-enum OraBrowserScripts {
+enum EvoBrowserScripts {
     static func userScripts() -> [BrowserUserScript] {
         var scripts = [
             BrowserUserScript(

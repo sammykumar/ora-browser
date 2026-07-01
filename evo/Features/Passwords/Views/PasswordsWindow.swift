@@ -11,7 +11,7 @@ func openPasswordsWindow() {
 private final class PasswordsWindowController: NSObject, NSWindowDelegate {
     static let shared = PasswordsWindowController()
 
-    private let sharedModelContainer = try? ModelConfiguration.createOraContainer(isPrivate: false)
+    private let sharedModelContainer = try? ModelConfiguration.createEvoContainer(isPrivate: false)
     private var windowController: NSWindowController?
 
     func show() {
@@ -241,7 +241,7 @@ private struct PasswordsWindowView: View {
                     .frame(maxWidth: 360)
             }
 
-            OraButton(
+            EvoButton(
                 label: isAuthenticating ? "Unlocking..." : "Unlock Passwords",
                 variant: .outline,
                 isDisabled: isAuthenticating,
@@ -394,7 +394,7 @@ private struct PasswordsWindowView: View {
 
     private func copyActionButton(help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            OraIcons(
+            EvoIcons(
                 icon: .copy,
                 size: .custom(14),
                 color: theme.mutedForeground

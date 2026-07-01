@@ -177,7 +177,7 @@ struct URLBar: View {
                         foregroundColor: buttonForegroundColor,
                         action: onSidebarToggle
                     )
-                    .oraShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
+                    .evoShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
                 }
 
                 // Back button
@@ -187,8 +187,8 @@ struct URLBar: View {
                     foregroundColor: buttonForegroundColor,
                     action: { tabManager.activeTab?.goBack() }
                 )
-                .oraShortcut(KeyboardShortcuts.Navigation.back)
-                .oraShortcutHelp("Go Back", for: KeyboardShortcuts.Navigation.back)
+                .evoShortcut(KeyboardShortcuts.Navigation.back)
+                .evoShortcutHelp("Go Back", for: KeyboardShortcuts.Navigation.back)
 
                 // Forward button
                 URLBarButton(
@@ -197,8 +197,8 @@ struct URLBar: View {
                     foregroundColor: buttonForegroundColor,
                     action: { tabManager.activeTab?.goForward() }
                 )
-                .oraShortcut(KeyboardShortcuts.Navigation.forward)
-                .oraShortcutHelp("Go Forward", for: KeyboardShortcuts.Navigation.forward)
+                .evoShortcut(KeyboardShortcuts.Navigation.forward)
+                .evoShortcutHelp("Go Forward", for: KeyboardShortcuts.Navigation.forward)
 
                 // Reload button
                 URLBarButton(
@@ -207,8 +207,8 @@ struct URLBar: View {
                     foregroundColor: buttonForegroundColor,
                     action: { tabManager.activeTab?.reload() }
                 )
-                .oraShortcut(KeyboardShortcuts.Navigation.reload)
-                .oraShortcutHelp("Reload This Page", for: KeyboardShortcuts.Navigation.reload)
+                .evoShortcut(KeyboardShortcuts.Navigation.reload)
+                .evoShortcutHelp("Reload This Page", for: KeyboardShortcuts.Navigation.reload)
 
                 // URL field area - morphs between display and launcher input
                 Group {
@@ -245,7 +245,7 @@ struct URLBar: View {
                         foregroundColor: buttonForegroundColor,
                         action: onSidebarToggle
                     )
-                    .oraShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
+                    .evoShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
                 }
             }
             .padding(4)
@@ -257,7 +257,7 @@ struct URLBar: View {
             // Hidden button for keyboard shortcut
             .overlay(
                 Button("") { startEditing() }
-                    .oraShortcut(KeyboardShortcuts.Address.focus)
+                    .evoShortcut(KeyboardShortcuts.Address.focus)
                     .opacity(0)
                     .allowsHitTesting(false)
             )
@@ -343,7 +343,7 @@ struct URLBar: View {
                     .frame(width: 16, height: 16)
             }
             .buttonStyle(.plain)
-            .oraShortcutHelp("Copy URL", for: KeyboardShortcuts.Address.copyURL)
+            .evoShortcutHelp("Copy URL", for: KeyboardShortcuts.Address.copyURL)
             .accessibilityLabel(Text("Copy URL"))
         }
         .frame(height: 30)

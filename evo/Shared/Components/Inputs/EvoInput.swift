@@ -1,19 +1,19 @@
 import SwiftUI
 
-enum OraInputVariant {
+enum EvoInputVariant {
     case `default`
     case outline
     case ghost
 }
 
-struct OraInput: View {
+struct EvoInput: View {
     @Binding var text: String
     var placeholder: String = ""
     var label: String?
     var hint: String?
     var error: String?
-    var variant: OraInputVariant = .default
-    var size: OraButtonSize = .md
+    var variant: EvoInputVariant = .default
+    var size: EvoButtonSize = .md
     var isDisabled: Bool = false
     var isSecure: Bool = false
     var leadingIcon: String?
@@ -168,15 +168,15 @@ struct OraInput: View {
     VStack(alignment: .leading, spacing: 20) {
         Group {
             Text("Default").font(.caption).foregroundStyle(.secondary)
-            OraInput(text: $text1, placeholder: "Enter value…")
-            OraInput(text: $text2, placeholder: "Enter value…", label: "Repository name")
-            OraInput(
+            EvoInput(text: $text1, placeholder: "Enter value…")
+            EvoInput(text: $text2, placeholder: "Enter value…", label: "Repository name")
+            EvoInput(
                 text: $text3,
                 placeholder: "Enter value…",
                 label: "With hint",
                 hint: "This is a helper message"
             )
-            OraInput(
+            EvoInput(
                 text: $text4,
                 placeholder: "Enter value…",
                 label: "With error",
@@ -186,31 +186,31 @@ struct OraInput: View {
 
         Group {
             Text("Outline").font(.caption).foregroundStyle(.secondary)
-            OraInput(text: $text5, placeholder: "Search…", variant: .outline, leadingIcon: "magnifyingglass")
-            OraInput(text: $text6, placeholder: "Disabled", variant: .outline, isDisabled: true)
+            EvoInput(text: $text5, placeholder: "Search…", variant: .outline, leadingIcon: "magnifyingglass")
+            EvoInput(text: $text6, placeholder: "Disabled", variant: .outline, isDisabled: true)
         }
 
         Group {
             Text("Ghost").font(.caption).foregroundStyle(.secondary)
-            OraInput(text: $text1, placeholder: "Inline edit…", variant: .ghost)
+            EvoInput(text: $text1, placeholder: "Inline edit…", variant: .ghost)
         }
 
         Group {
             Text("Sizes").font(.caption).foregroundStyle(.secondary)
-            OraInput(text: $text1, placeholder: "Small", size: .sm)
-            OraInput(text: $text1, placeholder: "Medium")
-            OraInput(text: $text1, placeholder: "Large", size: .lg)
+            EvoInput(text: $text1, placeholder: "Small", size: .sm)
+            EvoInput(text: $text1, placeholder: "Medium")
+            EvoInput(text: $text1, placeholder: "Large", size: .lg)
         }
 
         Group {
             Text("With icons").font(.caption).foregroundStyle(.secondary)
-            OraInput(
+            EvoInput(
                 text: $text1,
                 placeholder: "Search engines…",
                 leadingIcon: "magnifyingglass",
                 trailingIcon: "xmark.circle.fill"
             )
-            OraInput(text: $text1, placeholder: "Password", isSecure: true, leadingIcon: "lock", trailingIcon: "eye")
+            EvoInput(text: $text1, placeholder: "Password", isSecure: true, leadingIcon: "lock", trailingIcon: "eye")
         }
     }
     .padding(24)

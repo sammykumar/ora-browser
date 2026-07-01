@@ -62,7 +62,7 @@ struct ContainerForm: View {
     }
 
     private var nameTextField: some View {
-        OraInput(
+        EvoInput(
             text: $name,
             placeholder: "eg. work, streaming, finance...",
             onSubmit: onSubmit

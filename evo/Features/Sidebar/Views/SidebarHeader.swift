@@ -32,7 +32,7 @@ struct SidebarHeader: View {
                             foregroundColor: theme.foreground.opacity(0.7),
                             action: { sidebarManager.toggleSidebar() }
                         )
-                        .oraShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
+                        .evoShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
                         Spacer()
                     }
 
@@ -46,7 +46,7 @@ struct SidebarHeader: View {
                             }
                         }
                     )
-                    .oraShortcutHelp("Go Back", for: KeyboardShortcuts.Navigation.back)
+                    .evoShortcutHelp("Go Back", for: KeyboardShortcuts.Navigation.back)
 
                     URLBarButton(
                         systemName: "chevron.right",
@@ -58,7 +58,7 @@ struct SidebarHeader: View {
                             }
                         }
                     )
-                    .oraShortcutHelp("Go Forward", for: KeyboardShortcuts.Navigation.forward)
+                    .evoShortcutHelp("Go Forward", for: KeyboardShortcuts.Navigation.forward)
 
                     URLBarButton(
                         systemName: "arrow.clockwise",
@@ -70,7 +70,7 @@ struct SidebarHeader: View {
                             }
                         }
                     )
-                    .oraShortcutHelp("Reload This Page", for: KeyboardShortcuts.Navigation.reload)
+                    .evoShortcutHelp("Reload This Page", for: KeyboardShortcuts.Navigation.reload)
 
                     if sidebarManager.sidebarPosition == .secondary {
                         Spacer()
@@ -80,7 +80,7 @@ struct SidebarHeader: View {
                             foregroundColor: theme.foreground.opacity(0.7),
                             action: { sidebarManager.toggleSidebar() }
                         )
-                        .oraShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
+                        .evoShortcutHelp("Toggle Sidebar", for: KeyboardShortcuts.App.toggleSidebar)
                     }
                 }
             }

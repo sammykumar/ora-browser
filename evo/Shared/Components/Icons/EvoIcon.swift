@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Size
 
-enum OraIconSize {
+enum EvoIconSize {
     case xs, sm, md, lg, xl
     case custom(CGFloat)
 
@@ -34,7 +34,7 @@ struct AnyOraShape: Shape {
 
 // MARK: - Icon registry
 
-enum OraIconType {
+enum EvoIconType {
     case star
     case circle
     case spaceCards
@@ -72,9 +72,9 @@ enum OraIconType {
 
 // MARK: - View
 
-struct OraIcons: View {
-    let icon: OraIconType
-    var size: OraIconSize = .md
+struct EvoIcons: View {
+    let icon: EvoIconType
+    var size: EvoIconSize = .md
     var color: Color?
 
     @Environment(\.theme) private var theme
@@ -118,16 +118,16 @@ private struct StarIcon: Shape {
 #Preview {
     VStack(spacing: 20) {
         HStack(spacing: 16) {
-            OraIcons(icon: .star, size: .xs)
-            OraIcons(icon: .star, size: .sm)
-            OraIcons(icon: .star, size: .md)
-            OraIcons(icon: .star, size: .lg)
-            OraIcons(icon: .star, size: .xl)
+            EvoIcons(icon: .star, size: .xs)
+            EvoIcons(icon: .star, size: .sm)
+            EvoIcons(icon: .star, size: .md)
+            EvoIcons(icon: .star, size: .lg)
+            EvoIcons(icon: .star, size: .xl)
         }
         HStack(spacing: 16) {
-            OraIcons(icon: .circle, size: .xl)
-            OraIcons(icon: .star, size: .xl, color: .orange)
-            OraIcons(icon: .custom(AnyOraShape(RoundedRectangle(cornerRadius: 4))), size: .xl)
+            EvoIcons(icon: .circle, size: .xl)
+            EvoIcons(icon: .star, size: .xl, color: .orange)
+            EvoIcons(icon: .custom(AnyOraShape(RoundedRectangle(cornerRadius: 4))), size: .xl)
         }
     }
     .padding(40)

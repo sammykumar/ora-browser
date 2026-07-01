@@ -35,10 +35,10 @@ final class DialogManager: ObservableObject {
     func confirm(
         title: String,
         message: String? = nil,
-        icon: OraIconType? = nil,
+        icon: EvoIconType? = nil,
         iconImage: Image? = nil,
         confirmLabel: String = "Confirm",
-        variant: OraButtonVariant = .default,
+        variant: EvoButtonVariant = .default,
         onConfirm: @escaping () -> Void,
         onCancel: (() -> Void)? = nil
     ) {

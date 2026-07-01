@@ -5,11 +5,11 @@ import SwiftUI
 struct ConfirmDialogView: View {
     let title: String
     var message: String?
-    var icon: OraIconType?
+    var icon: EvoIconType?
     var iconColor: Color?
     var iconImage: Image?
     var confirmLabel: String = "Confirm"
-    var confirmVariant: OraButtonVariant = .default
+    var confirmVariant: EvoButtonVariant = .default
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -32,7 +32,7 @@ struct ConfirmDialogView: View {
                     .cornerRadius(12)
                     .padding(.bottom, 16)
                 } else if let icon {
-                    OraIcons(icon: icon, size: .custom(42), color: iconColor ?? theme.mutedForeground)
+                    EvoIcons(icon: icon, size: .custom(42), color: iconColor ?? theme.mutedForeground)
                         .padding(.bottom, 16)
                 }
 
@@ -51,9 +51,9 @@ struct ConfirmDialogView: View {
                 Spacer()
 
                 HStack {
-                    OraButton(label: "Cancel", variant: .secondary, keyboardShortcut: "esc", action: onCancel)
+                    EvoButton(label: "Cancel", variant: .secondary, keyboardShortcut: "esc", action: onCancel)
                     Spacer()
-                    OraButton(label: confirmLabel, variant: confirmVariant, keyboardShortcut: "return") {
+                    EvoButton(label: confirmLabel, variant: confirmVariant, keyboardShortcut: "return") {
                         onConfirm()
                         onCancel()
                     }

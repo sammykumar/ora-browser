@@ -1,6 +1,6 @@
 //
-//  oraTests.swift
-//  oraTests
+//  evoTests.swift
+//  evoTests
 //
 //  Created by keni on 6/21/25.
 //
@@ -54,7 +54,7 @@ private final class RequestCountingURLProtocol: URLProtocol, @unchecked Sendable
     override func stopLoading() {}
 }
 
-struct OraTests {
+struct EvoTests {
     @Test func normalizesHostsForPasswordMatching() {
         #expect(PasswordManagerService.normalizeHost("WWW.Example.COM.") == "www.example.com")
         #expect(PasswordManagerService.normalizeHost(" login.example.com ") == "login.example.com")

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct OraCommands: Commands {
+struct EvoCommands: Commands {
     @AppStorage("AppAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
     @AppStorage("ui.sidebar.hidden") private var isSidebarHidden: Bool = false
     @AppStorage("ui.sidebar.position") private var sidebarPosition: SidebarPosition = .primary

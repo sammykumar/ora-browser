@@ -111,7 +111,7 @@ struct SidebarURLDisplay: View {
         )
         .overlay(
             Button("") { openLauncher() }
-                .oraShortcut(KeyboardShortcuts.Address.focus)
+                .evoShortcut(KeyboardShortcuts.Address.focus)
                 .opacity(0)
                 .allowsHitTesting(false)
                 .disabled(

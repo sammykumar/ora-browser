@@ -586,7 +586,7 @@ final class PasswordManagerService: ObservableObject {
     }
 
     private func legacyMigrationContainerID() -> UUID? {
-        guard let modelContainer = try? ModelConfiguration.createOraContainer(isPrivate: false) else {
+        guard let modelContainer = try? ModelConfiguration.createEvoContainer(isPrivate: false) else {
             return nil
         }
 

@@ -11,7 +11,7 @@ final class PrivacyMode: ObservableObject {
     }
 }
 
-struct OraRoot: View {
+struct EvoRoot: View {
     @StateObject private var appState = AppState()
     @StateObject private var keyModifierListener = KeyModifierListener()
     @StateObject private var updateService = UpdateService()
@@ -38,7 +38,7 @@ struct OraRoot: View {
         let container: ModelContainer
         let modelContext: ModelContext
         do {
-            container = try ModelConfiguration.createOraContainer(isPrivate: isPrivate)
+            container = try ModelConfiguration.createEvoContainer(isPrivate: isPrivate)
             modelContext = ModelContext(container)
         } catch {
             deleteSwiftDataStore("EvoData.sqlite")

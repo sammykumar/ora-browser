@@ -13,7 +13,7 @@ struct BrowserPageConfiguration {
     let userScripts: [BrowserUserScript]
     let privacySettings: SpacePrivacySettings
 
-    static func oraDefault(
+    static func evoDefault(
         userScripts: [BrowserUserScript],
         privacySettings: SpacePrivacySettings
     ) -> BrowserPageConfiguration {

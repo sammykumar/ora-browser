@@ -61,7 +61,7 @@ struct StatusPageView: View {
             .padding(.top, 8)
 
             if errorType == .security, let continueAnyway = onContinueAnyway {
-                OraButton(
+                EvoButton(
                     label: "Continue Anyway",
                     variant: .ghost,
                     size: .sm,

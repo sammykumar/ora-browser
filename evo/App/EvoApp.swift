@@ -32,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             any.makeKeyAndOrderFront(nil)
             return any
         }
-        return WindowFactory.makeMainWindow(rootView: OraRoot())
+        return WindowFactory.makeMainWindow(rootView: EvoRoot())
     }
 
     func handleIncomingURLs(_ urls: [URL]) {
@@ -66,16 +66,16 @@ class AppState: ObservableObject {
 }
 
 @main
-struct OraApp: App {
+struct EvoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     /// Shared model container that uses the same configuration as the main browser
     private let sharedModelContainer: ModelContainer? =
-        try? ModelConfiguration.createOraContainer(isPrivate: false)
+        try? ModelConfiguration.createEvoContainer(isPrivate: false)
 
     var body: some Scene {
         WindowGroup(id: "normal") {
-            OraRoot()
+            EvoRoot()
                 .frame(minWidth: 500, minHeight: 360)
                 .environmentObject(DefaultBrowserManager.shared)
         }
@@ -85,7 +85,7 @@ struct OraApp: App {
         .handlesExternalEvents(matching: [])
 
         WindowGroup("Private", id: "private") {
-            OraRoot(isPrivate: true)
+            EvoRoot(isPrivate: true)
                 .frame(minWidth: 500, minHeight: 360)
                 .environmentObject(DefaultBrowserManager.shared)
         }
@@ -114,6 +114,6 @@ struct OraApp: App {
         .windowToolbarStyle(UnifiedCompactWindowToolbarStyle())
         .windowResizability(.contentSize)
         .defaultSize(width: 980, height: 640)
-        .commands { OraCommands() }
+        .commands { EvoCommands() }
     }
 }

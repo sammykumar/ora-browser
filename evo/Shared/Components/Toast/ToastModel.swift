@@ -65,8 +65,8 @@ enum ToastIcon {
         .view(AnyView(shape))
     }
 
-    static func ora(_ icon: OraIconType, color: Color? = nil) -> ToastIcon {
-        .view(AnyView(OraIcons(icon: icon, size: .custom(14), color: color)))
+    static func ora(_ icon: EvoIconType, color: Color? = nil) -> ToastIcon {
+        .view(AnyView(EvoIcons(icon: icon, size: .custom(14), color: color)))
     }
 }
 

@@ -213,10 +213,10 @@ class Tab: ObservableObject, Identifiable {
         let engine = BrowserEngine.shared
         let profile = engine.makeProfile(identifier: container.id, isPrivate: isPrivate)
         let privacySettings = SettingsStore.shared.privacySettings(for: container.id)
-        let userScripts = OraBrowserScripts.userScripts() + BrowserPrivacyService.privacyScripts(for: privacySettings)
+        let userScripts = EvoBrowserScripts.userScripts() + BrowserPrivacyService.privacyScripts(for: privacySettings)
         let page = engine.makePage(
             profile: profile,
-            configuration: BrowserPageConfiguration.oraDefault(
+            configuration: BrowserPageConfiguration.evoDefault(
                 userScripts: userScripts,
                 privacySettings: privacySettings
             ),

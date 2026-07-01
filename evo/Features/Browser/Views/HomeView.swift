@@ -22,7 +22,7 @@ struct HomeView: View {
                     foregroundColor: theme.foreground.opacity(0.3),
                     action: { sidebarManager.toggleSidebar() }
                 )
-                .oraShortcut(KeyboardShortcuts.App.toggleSidebar)
+                .evoShortcut(KeyboardShortcuts.App.toggleSidebar)
             }
             .zIndex(3)
             .frame(maxWidth: .infinity, alignment: sidebarManager.sidebarPosition == .primary ? .leading : .trailing)

@@ -43,7 +43,7 @@ struct DownloadsWidget: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(theme.accent)
                 } else {
-                    OraIcons(icon: .downloadBox, size: .md, color: .secondary)
+                    EvoIcons(icon: .downloadBox, size: .md, color: .secondary)
                 }
             }
             .frame(width: 32, height: 32)

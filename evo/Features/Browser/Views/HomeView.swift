@@ -32,7 +32,7 @@ struct HomeView: View {
             .opacity(sidebarManager.isSidebarHidden ? 1 : 0)
 
             VStack(alignment: .center, spacing: 16) {
-                Image("ora-logo-plain")
+                Image("evo-logo-plain")
                     .resizable()
                     .renderingMode(.template)
                     .frame(width: 50, height: 50)

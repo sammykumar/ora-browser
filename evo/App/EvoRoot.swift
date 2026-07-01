@@ -158,7 +158,7 @@ struct EvoRoot: View {
                     dialogManager.confirm(
                         title: "Quit Evo?",
                         message: "Are you sure you want to quit?",
-                        iconImage: Image("OraColorLogo"),
+                        iconImage: Image("EvoColorLogo"),
                         confirmLabel: "Quit",
                         variant: .destructive,
                         onConfirm: { NSApp.reply(toApplicationShouldTerminate: true) },

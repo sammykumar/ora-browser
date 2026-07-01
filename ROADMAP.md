@@ -1,10 +1,10 @@
 # Evo Browser Roadmap
 
-Evo is a personal fork of [Ora Browser](https://github.com/the-ora/browser) — a single-user Arc replacement for macOS. This roadmap covers what makes Evo different from upstream: AI-aware browsing with MCP integration. Features inherited from Ora that already work (Spaces, vertical tabs, private browsing, password autofill, etc.) are not duplicated here.
+Evo is a personal, single-user Arc replacement for macOS. This roadmap covers what makes Evo different: AI-aware browsing with MCP integration. Core browsing capabilities that already work (Spaces, vertical tabs, private browsing, password autofill, etc.) are not duplicated here.
 
 ## Thesis
 
-The differentiating feature is **AI that can act on pages and reach local tools via MCP**. Anthropic's Swift MCP SDK is the integration vehicle and Claude is the primary model. AI work is prioritized over polish on capabilities Ora already provides.
+The differentiating feature is **AI that can act on pages and reach local tools via MCP**. Anthropic's Swift MCP SDK is the integration vehicle and Claude is the primary model. AI work is prioritized over polish on capabilities that already exist.
 
 ## 6-Month Horizon — AI / MCP
 
@@ -14,7 +14,7 @@ Phased so each step is usable on its own and unblocks the next. Phase 1 is the f
 
 The minimum surface everything else builds on.
 
-- Provider abstraction: replace Ora's hardcoded Grok / ChatGPT URL shortcuts (currently in `ora/Features/Launcher/` and `ora/Features/Search/`) with a proper provider layer
+- Provider abstraction: replace the hardcoded Grok / ChatGPT URL shortcuts (currently in `evo/Features/Launcher/` and `evo/Features/Search/`) with a proper provider layer
 - Claude API as the first provider, BYO key
 - MCP client via Anthropic's Swift MCP SDK
 - Settings UI to wire up MCP servers, with local dev-project servers as the first target
@@ -48,7 +48,7 @@ Status as of this update — still being triaged.
 - Air Traffic Control (URL routing rules — e.g. work URLs auto-open in the Work space)
 - Tab / Space management ergonomics
 - Apple-ecosystem integration: Handoff, CloudKit sync, App Intents, Spotlight
-- Browser hygiene: finish branding divergence ([FORK_PATCHES.md](./FORK_PATCHES.md)), Sparkle replacement decision, reader mode via bundled Readability.js
+- Browser hygiene: Sparkle replacement decision, reader mode via bundled Readability.js
 
 **Cut**
 
@@ -59,11 +59,7 @@ Status as of this update — still being triaged.
 **Deprioritized**
 
 - Extensions (`WKWebExtension`) — may revisit if a specific need appears
-- Cross-platform (Windows / Linux / Android) — ruled out at fork-base selection
+- Cross-platform (Windows / Linux / Android) — ruled out early; see [CLAUDE.md](CLAUDE.md#decisions-already-made--dont-re-litigate)
 - iOS / iPadOS port — tractable future direction, not active
-
-## Inherited from Ora
-
-Features that ship from upstream are tracked in [Ora's roadmap](https://github.com/the-ora/browser/blob/main/ROADMAP.md). The fork delta — files Evo overrides and why — lives in [FORK_PATCHES.md](./FORK_PATCHES.md).
 
 _Last updated: 2026-05-24_

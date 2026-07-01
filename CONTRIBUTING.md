@@ -1,9 +1,7 @@
 # Contributing to Evo
 
-Evo is a personal, single-user fork of [the-ora/browser](https://github.com/the-ora/browser). It is not open to external contributors.
-
-If you are interested in the underlying open-source browser, contribute upstream: <https://github.com/the-ora/browser>.
+Evo is a personal, single-user macOS browser maintained by SK Productions LLC. It is not open to external contributors. See [README.md](README.md) for license and upstream attribution.
 
 ## Local workflow (for the maintainer)
 
-Setup, build, test, and style commands live in [BUILD.md](BUILD.md). Working notes — architecture, fork-vs-upstream conventions, do-not-touch lists — live in [CLAUDE.md](CLAUDE.md) and [FORK_PATCHES.md](FORK_PATCHES.md).
+Setup, build, test, and style commands live in [BUILD.md](BUILD.md). Architecture and working notes live in [CLAUDE.md](CLAUDE.md).

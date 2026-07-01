@@ -1,6 +1,6 @@
 # BUILD.md
 
-How to build and run this fork from a fresh clone. Verified 2026-05-09 on macOS 26.4.1 (arm64) with Xcode 26.4.1.
+How to build and run Evo from a fresh clone. Verified 2026-05-09 on macOS 26.4.1 (arm64) with Xcode 26.4.1.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ xcodegen
 
 `xcodegen` reads `project.yml` and writes `Evo.xcodeproj` (gitignored). Re-run it whenever `project.yml` changes.
 
-> **Note on git hooks:** upstream's `./scripts/setup.sh` also installs `lefthook` git hooks (swiftformat + swiftlint pre-commit, debug build pre-push). This fork intentionally skips them. To opt back in later: `brew install lefthook && lefthook install`.
+> **Note on git hooks:** `./scripts/setup.sh` also installs `lefthook` git hooks (swiftformat + swiftlint pre-commit, debug build pre-push) via `lefthook install`. If you'd rather run formatters manually instead, skip `setup.sh`'s hook step or `lefthook uninstall` afterward.
 
 ## Build (debug, unsigned)
 
@@ -60,15 +60,15 @@ xcodebuild test -scheme evo -destination "platform=macOS" -configuration Debug \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
 ```
 
-28 tests across 2 suites (`BrowserPageHostViewTests`, `OraTests`). Runs in ~0.1s. The xcresult bundle lands in DerivedData/Logs/Test.
+28 tests across 2 suites (`BrowserPageHostViewTests`, `EvoTests`). Runs in ~0.1s. The xcresult bundle lands in DerivedData/Logs/Test.
 
 ## Quirks worth knowing
 
 ### Code-signing in `project.yml`
 
-This fork patches Debug to `CODE_SIGN_STYLE: Automatic` and removes upstream's hard-coded team and provisioning profile (see `FORK_PATCHES.md`). Xcode GUI Run will use your personal Apple ID team automatically — you'll be prompted to select one the first time you build via Xcode. CLI builds via `./scripts/xcbuild-debug.sh` continue to bypass signing entirely.
+Debug uses `CODE_SIGN_STYLE: Automatic` with no hard-coded team or provisioning profile. Xcode GUI Run will use your personal Apple ID team automatically — you'll be prompted to select one the first time you build via Xcode. CLI builds via `./scripts/xcbuild-debug.sh` continue to bypass signing entirely.
 
-Release config still has `CODE_SIGN_STYLE: Manual` and `CODE_SIGN_IDENTITY: Developer ID Application` from upstream, but the `DEVELOPMENT_TEAM` and `PROVISIONING_PROFILE_SPECIFIER` fields are blank. Signed Release builds will require you to provide your own team and profile (TBD).
+Release config has `CODE_SIGN_STYLE: Manual` and `CODE_SIGN_IDENTITY: Developer ID Application`, but the `DEVELOPMENT_TEAM` and `PROVISIONING_PROFILE_SPECIFIER` fields are blank. Signed Release builds will require you to provide your own team and profile (TBD).
 
 ### Hot-reload via Inject
 
@@ -84,7 +84,7 @@ pkill -f "Evo.app/Contents/MacOS/Evo"
 
 ### Signed/notarized release builds
 
-`scripts/build.sh`, `scripts/release.sh`, `scripts/publish.sh` are upstream's full DMG / Sparkle pipeline. They require a `.env` (see `.env.example`) with `TEAM_ID`, `SIGNING_IDENTITY`, `DEVELOPER_ID_PROFILE`, `APP_SPECIFIC_PASSWORD_KEYCHAIN` and a Developer ID certificate in the keychain. Out of scope for local development.
+There is no signed-release / DMG / notarization pipeline yet. Building one would need a `.env` (see `.env.example`) with `TEAM_ID`, `SIGNING_IDENTITY`, `DEVELOPER_ID_PROFILE`, `APP_SPECIFIC_PASSWORD_KEYCHAIN` and a Developer ID certificate in the keychain. Out of scope for local development.
 
 ### SPM dependencies
 

@@ -39,20 +39,20 @@ targets:
     preBuildScripts:
       - name: "Copy Icon Bundle"
         inputFiles:
-          - "$(SRCROOT)/evo/Assets/Icons/OraIcon.icon"
-          - "$(SRCROOT)/evo/Assets/Icons/OraIconDev.icon"
+          - "$(SRCROOT)/evo/Assets/Icons/EvoIcon.icon"
+          - "$(SRCROOT)/evo/Assets/Icons/EvoIconDev.icon"
         outputFiles:
-          - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/OraIcon.icon"
-          - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/OraIconDev.icon"
+          - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/EvoIcon.icon"
+          - "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/EvoIconDev.icon"
         script: |
-          ICON_SRC_DEV="$SRCROOT/evo/Assets/Icons/OraIconDev.icon"
-          ICON_SRC_RELEASE="$SRCROOT/evo/Assets/Icons/OraIcon.icon"
+          ICON_SRC_DEV="$SRCROOT/evo/Assets/Icons/EvoIconDev.icon"
+          ICON_SRC_RELEASE="$SRCROOT/evo/Assets/Icons/EvoIcon.icon"
           ICON_DST="$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/"
           if [ "$CONFIGURATION" = "Debug" ]; then
-              echo "Using OraIconDev.icon for Debug build"
+              echo "Using EvoIconDev.icon for Debug build"
               cp -R "$ICON_SRC_DEV" "$ICON_DST"
           else
-              echo "Using OraIcon.icon for Release build"
+              echo "Using EvoIcon.icon for Release build"
               cp -R "$ICON_SRC_RELEASE" "$ICON_DST"
           fi
 
@@ -90,7 +90,7 @@ targets:
         LSApplicationCategoryType: public.app-category.web-browser
 
     entitlements:
-      path: evo/Info/ora.entitlements
+      path: evo/Info/evo.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.assets.movies.read-only: true
@@ -125,15 +125,15 @@ targets:
         SUEnableInstallerLauncherService: NO
       configs:
         Debug:
-          ASSETCATALOG_COMPILER_APPICON_NAME: OraIconDev
-          CODE_SIGN_ENTITLEMENTS: evo/Info/ora.entitlements
+          ASSETCATALOG_COMPILER_APPICON_NAME: EvoIconDev
+          CODE_SIGN_ENTITLEMENTS: evo/Info/evo.entitlements
           CODE_SIGN_STYLE: Automatic
           EMIT_FRONTEND_COMMAND_LINES: YES
           OTHER_LDFLAGS: "-Xlinker -interposable"
           ENABLE_HARDENED_RUNTIME: NO
         Release:
-          ASSETCATALOG_COMPILER_APPICON_NAME: OraIcon
-          CODE_SIGN_ENTITLEMENTS: evo/Info/ora.entitlements
+          ASSETCATALOG_COMPILER_APPICON_NAME: EvoIcon
+          CODE_SIGN_ENTITLEMENTS: evo/Info/evo.entitlements
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           ENABLE_HARDENED_RUNTIME: YES

@@ -270,10 +270,10 @@ struct EvoTests {
         #expect(store.privacySettings(for: containerID).adBlock.updateMode == .aggressiveAuto)
     }
 
-    @Test func spacePrivacySettingsDefaultToFingerprintingOnAndCookiesAllowed() {
+    @Test func spacePrivacySettingsDefaultToProtectionsOffAndCookiesAllowed() {
         let defaults = SpacePrivacySettings()
 
-        #expect(defaults.blockFingerprinting)
+        #expect(!defaults.blockFingerprinting)
         #expect(defaults.cookiesPolicy == .allowAll)
     }
 

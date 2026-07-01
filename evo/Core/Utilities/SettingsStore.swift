@@ -336,7 +336,7 @@ class SettingsStore: ObservableObject {
         {
             passwordManagerProvider = provider
         } else {
-            passwordManagerProvider = .ora
+            passwordManagerProvider = .evo
         }
         passwordAutofillEnabled = defaults.object(forKey: passwordAutofillEnabledKey) as? Bool ?? true
         passwordAutofillSubmitEnabled = defaults.object(forKey: passwordAutofillSubmitEnabledKey) as? Bool ?? true

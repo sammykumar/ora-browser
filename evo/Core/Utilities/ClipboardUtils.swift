@@ -38,6 +38,6 @@ enum ClipboardUtils {
     /// Copies text and shows a toast notification
     static func copyWithToast(_ text: String, message: String = "Link copied", toastManager: ToastManager?) {
         copyToClipboard(text)
-        toastManager?.show(message, icon: .ora(.copy))
+        toastManager?.show(message, icon: .evo(.copy))
     }
 }

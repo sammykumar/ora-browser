@@ -81,8 +81,8 @@ class UpdateService: NSObject, ObservableObject {
 
 extension UpdateService: SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? {
-        // Sparkle is disabled on this fork (see FORK_PATCHES.md). Return nil so even if updater wiring
-        // is re-enabled accidentally, it does not fetch from the upstream Ora appcast.
+        // Sparkle is disabled. Return nil so that even if the updater wiring is re-enabled
+        // accidentally, it does not fetch from any appcast.
         return nil
     }
 

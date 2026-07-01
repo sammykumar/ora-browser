@@ -159,7 +159,7 @@ struct EvoInput: View {
 
 #Preview {
     @Previewable @State var text1 = ""
-    @Previewable @State var text2 = "ora-browser"
+    @Previewable @State var text2 = "evo-browser"
     @Previewable @State var text3 = ""
     @Previewable @State var text4 = ""
     @Previewable @State var text5 = ""

@@ -20,7 +20,7 @@ enum EvoIconSize {
 
 // MARK: - Type-erased shape wrapper
 
-struct AnyOraShape: Shape {
+struct AnyEvoShape: Shape {
     private let _path: @Sendable (CGRect) -> Path
 
     init(_ shape: some Shape & Sendable) {
@@ -48,23 +48,23 @@ enum EvoIconType {
     case downloadBox2
     case shieldLock
     case shieldBan
-    case custom(AnyOraShape)
+    case custom(AnyEvoShape)
 
-    var shape: AnyOraShape {
+    var shape: AnyEvoShape {
         switch self {
-        case .star:             AnyOraShape(StarIcon())
-        case .circle:           AnyOraShape(Circle())
-        case .spaceCards:       AnyOraShape(SpaceCardsIcon())
-        case .spaceCardsDelete: AnyOraShape(SpaceCardsDeleteIcon())
-        case .spaceCardsEdit:   AnyOraShape(SpaceCardsEditIcon())
-        case .autofill:         AnyOraShape(AutofillIcon())
-        case .copy:             AnyOraShape(CopyIcon())
-        case .brush1:           AnyOraShape(Brush1())
-        case .brush2:           AnyOraShape(Brush2())
-        case .downloadBox:      AnyOraShape(DownloadBox())
-        case .downloadBox2:     AnyOraShape(DownloadBox2())
-        case .shieldLock:       AnyOraShape(ShieldLockIcon())
-        case .shieldBan:        AnyOraShape(ShieldBanIcon())
+        case .star:             AnyEvoShape(StarIcon())
+        case .circle:           AnyEvoShape(Circle())
+        case .spaceCards:       AnyEvoShape(SpaceCardsIcon())
+        case .spaceCardsDelete: AnyEvoShape(SpaceCardsDeleteIcon())
+        case .spaceCardsEdit:   AnyEvoShape(SpaceCardsEditIcon())
+        case .autofill:         AnyEvoShape(AutofillIcon())
+        case .copy:             AnyEvoShape(CopyIcon())
+        case .brush1:           AnyEvoShape(Brush1())
+        case .brush2:           AnyEvoShape(Brush2())
+        case .downloadBox:      AnyEvoShape(DownloadBox())
+        case .downloadBox2:     AnyEvoShape(DownloadBox2())
+        case .shieldLock:       AnyEvoShape(ShieldLockIcon())
+        case .shieldBan:        AnyEvoShape(ShieldBanIcon())
         case let .custom(shape): shape
         }
     }
@@ -127,7 +127,7 @@ private struct StarIcon: Shape {
         HStack(spacing: 16) {
             EvoIcons(icon: .circle, size: .xl)
             EvoIcons(icon: .star, size: .xl, color: .orange)
-            EvoIcons(icon: .custom(AnyOraShape(RoundedRectangle(cornerRadius: 4))), size: .xl)
+            EvoIcons(icon: .custom(AnyEvoShape(RoundedRectangle(cornerRadius: 4))), size: .xl)
         }
     }
     .padding(40)

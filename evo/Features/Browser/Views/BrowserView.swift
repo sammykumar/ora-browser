@@ -21,7 +21,7 @@ struct BrowserView: View {
 
     // MARK: - Sidebar mouse shield
 
-    private static let removeShieldJS = "document.getElementById('ora-sb-shield')?.remove();"
+    private static let removeShieldJS = "document.getElementById('evo-sb-shield')?.remove();"
 
     private var clampedSidebarFraction: CGFloat {
         min(
@@ -42,10 +42,10 @@ struct BrowserView: View {
             let widthVW = clampedSidebarFraction * 100
             activeTab.evaluateJavaScript(
                 """
-                var e = document.getElementById('ora-sb-shield');
+                var e = document.getElementById('evo-sb-shield');
                 if (e) e.remove();
                 var d = document.createElement('div');
-                d.id = 'ora-sb-shield';
+                d.id = 'evo-sb-shield';
                 d.style.position = 'fixed';
                 d.style.top = '0';
                 d.style.\(side) = '0';

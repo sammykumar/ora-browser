@@ -1,7 +1,7 @@
 import Foundation
 
 enum PasswordManagerProviderKind: String, CaseIterable, Codable, Identifiable {
-    case ora
+    case evo
     case onePassword
     case bitwarden
 
@@ -19,7 +19,7 @@ struct PasswordManagerProviderDescriptor: Identifiable, Hashable {
     let kind: PasswordManagerProviderKind
     let title: String
     let summary: String
-    let vaultStoredInOra: Bool
+    let vaultStoredInEvo: Bool
     let autofillMode: PasswordManagerAutofillMode
     let isAvailable: Bool
 
@@ -28,7 +28,7 @@ struct PasswordManagerProviderDescriptor: Identifiable, Hashable {
     }
 
     var usesBuiltInVault: Bool {
-        vaultStoredInOra
+        vaultStoredInEvo
     }
 
     var usesBuiltInOverlay: Bool {
@@ -41,10 +41,10 @@ final class PasswordManagerProviderRegistry {
 
     let providers: [PasswordManagerProviderDescriptor] = [
         PasswordManagerProviderDescriptor(
-            kind: .ora,
+            kind: .evo,
             title: "Evo Passwords",
             summary: "Store encrypted credentials in Evo and show Evo's autofill overlay.",
-            vaultStoredInOra: true,
+            vaultStoredInEvo: true,
             autofillMode: .builtInOverlay,
             isAvailable: true
         )
@@ -52,7 +52,7 @@ final class PasswordManagerProviderRegistry {
         //     kind: .onePassword,
         //     title: "1Password",
         //     summary: "Reserved for a native 1Password integration with 1Password's own autofill surface.",
-        //     vaultStoredInOra: false,
+        //     vaultStoredInEvo: false,
         //     autofillMode: .nativeProviderOverlay,
         //     isAvailable: false
         // ),
@@ -60,7 +60,7 @@ final class PasswordManagerProviderRegistry {
         //     kind: .bitwarden,
         //     title: "Bitwarden",
         //     summary: "Reserved for a native Bitwarden integration with Bitwarden's own autofill surface.",
-        //     vaultStoredInOra: false,
+        //     vaultStoredInEvo: false,
         //     autofillMode: .nativeProviderOverlay,
         //     isAvailable: false
         // )

@@ -4,13 +4,13 @@ enum EvoBrowserScripts {
     static func userScripts() -> [BrowserUserScript] {
         var scripts = [
             BrowserUserScript(
-                name: "ora-bridge",
+                name: "evo-bridge",
                 source: bridgeScript,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
             ),
             BrowserUserScript(
-                name: "ora-navigation",
+                name: "evo-navigation",
                 source: navigationAndMediaScript,
                 injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
@@ -20,7 +20,7 @@ enum EvoBrowserScripts {
         if let passwordManagerScript = loadResourceScript(named: "password-manager") {
             scripts.append(
                 BrowserUserScript(
-                    name: "ora-password-manager",
+                    name: "evo-password-manager",
                     source: passwordManagerScript,
                     injectionTime: .atDocumentEnd,
                     forMainFrameOnly: true

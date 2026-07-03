@@ -1,3 +1,4 @@
+import Combine
 @testable import Evo
 import Testing
 
@@ -27,5 +28,15 @@ import Testing
         #expect(SidePanel.claude.id == "claude")
         #expect(SidePanel.claude.symbol == "sparkles")
         #expect(SidePanel.allCases.contains(.claude))
+    }
+
+    @Test func flippingRailVisibilityPublishesChange() {
+        let manager = PanelRailManager()
+        var published = false
+        let sub = manager.objectWillChange.sink { published = true }
+        manager.isRailVisible.toggle()
+        #expect(published)
+        sub.cancel()
+        manager.isRailVisible.toggle() // restore (AppStorage persists to UserDefaults)
     }
 }

@@ -14,7 +14,10 @@ import SwiftUI
     let fraction = FractionHolder.usingUserDefaults(0.7, key: "claude.panel.fraction")
 
     /// Rail chrome visibility — app-wide by design (View → Hide Panel Rail).
-    @AppStorage("rail.isVisible") var isRailVisible = true
+    /// @AppStorage doesn't feed objectWillChange; the rail view observes this manager, so publish manually.
+    @AppStorage("rail.isVisible") var isRailVisible = true {
+        didSet { objectWillChange.send() }
+    }
 
     func toggle(_ panel: SidePanel) {
         if activePanel == panel {

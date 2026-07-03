@@ -12,15 +12,40 @@
 import Foundation
 
 /// Assembles complete newline-terminated lines out of stdout chunks that may
-/// split a line across multiple `readabilityHandler` callbacks.
+/// split a line — or even a single multi-byte UTF-8 codepoint — across
+/// multiple `readabilityHandler` callbacks. Buffering happens at the byte
+/// level so decoding only ever runs on a complete line.
 struct LineBuffer {
-    private var pending = ""
+    private var pending = Data()
 
-    mutating func append(_ chunk: String, emit: (String) -> Void) {
-        pending += chunk
-        while let newlineIndex = pending.firstIndex(of: "\n") {
-            emit(String(pending[pending.startIndex ..< newlineIndex]))
-            pending = String(pending[pending.index(after: newlineIndex)...])
+    /// Appends a raw chunk of stdout bytes, emitting each complete
+    /// newline-terminated line as it becomes available.
+    mutating func append(_ chunk: Data, emit: (String) -> Void) {
+        pending.append(chunk)
+        while let newlineIndex = pending.firstIndex(of: 0x0A) {
+            let lineData = pending[pending.startIndex ..< newlineIndex]
+            emitLine(lineData, emit: emit)
+            pending.removeSubrange(pending.startIndex ... newlineIndex)
+        }
+    }
+
+    /// Emits any remaining buffered bytes as a final line. Call this once,
+    /// on EOF, to surface a trailing line that never got a newline.
+    mutating func flush(emit: (String) -> Void) {
+        guard !pending.isEmpty else { return }
+        emitLine(pending, emit: emit)
+        pending.removeAll()
+    }
+
+    private func emitLine(_ lineData: Data, emit: (String) -> Void) {
+        var lineData = lineData
+        if lineData.last == 0x0D {
+            lineData.removeLast()
+        }
+        // A complete line that still fails to decode as UTF-8 is genuinely
+        // malformed (not a chunk-boundary artifact) — skip it.
+        if let line = String(data: lineData, encoding: .utf8) {
+            emit(line)
         }
     }
 }
@@ -29,7 +54,9 @@ final class ClaudeSession {
     let events: AsyncStream<ClaudeEvent>
     private let process = Process()
     private let stdin = Pipe()
+    private let stdout = Pipe()
     private var continuation: AsyncStream<ClaudeEvent>.Continuation?
+    private var lineBuffer = LineBuffer()
 
     init(binaryPath: String, workingDirectory: URL, mcpConfigPath: String?) {
         var cont: AsyncStream<ClaudeEvent>.Continuation?
@@ -52,17 +79,18 @@ final class ClaudeSession {
         process.currentDirectoryURL = workingDirectory
         process.standardInput = stdin
 
-        let stdout = Pipe()
         process.standardOutput = stdout
-        var buffer = LineBuffer()
         stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self else { return }
             let data = handle.availableData
-            guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
-            buffer.append(chunk) { line in
-                if let event = ClaudeStreamEvent.parse(line: line) {
-                    self?.continuation?.yield(event)
-                }
+            guard !data.isEmpty else {
+                // EOF: flush any trailing partial line, then stop polling —
+                // otherwise this handler re-arms forever on empty reads.
+                self.lineBuffer.flush { line in self.dispatch(line: line) }
+                handle.readabilityHandler = nil
+                return
             }
+            self.lineBuffer.append(data) { line in self.dispatch(line: line) }
         }
         process.terminationHandler = { [weak self] proc in
             if proc.terminationStatus != 0 {
@@ -93,7 +121,14 @@ final class ClaudeSession {
     }
 
     func terminate() {
+        stdout.fileHandleForReading.readabilityHandler = nil
         process.terminate()
         continuation?.finish()
+    }
+
+    private func dispatch(line: String) {
+        if let event = ClaudeStreamEvent.parse(line: line) {
+            continuation?.yield(event)
+        }
     }
 }

@@ -57,11 +57,13 @@ final class ClaudeSession {
     private let stdout = Pipe()
     private var continuation: AsyncStream<ClaudeEvent>.Continuation?
     private var lineBuffer = LineBuffer()
+    private let mcpConfigPath: String?
 
     init(binaryPath: String, workingDirectory: URL, mcpConfigPath: String?) {
         var cont: AsyncStream<ClaudeEvent>.Continuation?
         events = AsyncStream { cont = $0 }
         continuation = cont
+        self.mcpConfigPath = mcpConfigPath
 
         var args = [
             "-p", "--input-format", "stream-json",
@@ -124,6 +126,9 @@ final class ClaudeSession {
         stdout.fileHandleForReading.readabilityHandler = nil
         process.terminate()
         continuation?.finish()
+        if let mcpConfigPath {
+            try? FileManager.default.removeItem(atPath: mcpConfigPath)
+        }
     }
 
     private func dispatch(line: String) {

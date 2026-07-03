@@ -3,9 +3,17 @@
 //  evoTests
 //
 //  HARD-GATE spike proof: the real `claude` CLI connects to Evo's in-process MCP
-//  server over localhost HTTP and successfully calls the `read_current_page` tool
-//  end-to-end. No `FrontmostTabRegistry` provider is registered in this headless
-//  test process, so this also pins the graceful no-active-tab error path.
+//  server over localhost HTTP and calls the `read_current_page` tool end-to-end.
+//
+//  This test process is hosted INSIDE the real Evo.app (see EvoRoot), which
+//  registers a live `FrontmostTabRegistry` provider on window activation — so a
+//  registered provider is the common case here, not the absent one. Both
+//  tool_result shapes are legitimate depending on that runtime state, and the
+//  assertions below check shape, not one hardcoded environment: no provider
+//  registered (isError:true, text containing "no active tab available") or a
+//  live provider (isError:false, any string text, including empty for a blank
+//  new-tab page). A raw MCP JSON-RPC probe against this exact test host
+//  confirmed the live-provider shape occurs in practice — see task-6-report.md.
 //
 //  This test makes a REAL authenticated `claude` API call — that is expected here.
 //  It is gated: if the `claude` binary is not found via a login shell, or if we
@@ -20,6 +28,19 @@
 //  tool directly callable. We replicate the user's OAuth token (or reuse
 //  ANTHROPIC_API_KEY) so auth still works in that isolated dir. See
 //  task-1-report.md for the full finding.
+//
+//  Local-CLI caveat: on at least one developer machine, this repo's local
+//  `claude` build was previously observed routing `read_current_page` through a
+//  `ToolSearch` deferred-tool path whose `CallTool` dispatch substituted
+//  unrelated cached content instead of proxying to Evo's server — a client-side
+//  CLI quirk, not a defect in `EvoToolServer`/`ReadCurrentPageTool` (both are
+//  independently proven by `ReadCurrentPageToolTests` and a raw MCP JSON-RPC
+//  probe; see task-6-report.md). The assertions below are strict because the
+//  most recent run reproduced neither issue: `mcp__evo__read_current_page` was
+//  dispatched directly and returned a well-formed `tool_result`. If a future run
+//  reproduces the dispatch failure, wrap the strict assertions in Swift
+//  Testing's `withKnownIssue(isIntermittent: true) { ... }` rather than
+//  weakening or deleting them — see task-6-report.md's "Fix round 1" section.
 //
 
 @testable import Evo
@@ -74,9 +95,20 @@ struct EvoToolServerSmokeTests {
             stdinLine: readCurrentPageUserLine
         )
 
-        // 4. Assert the round-trip: a tool_use for mcp__evo__read_current_page AND
-        //    the graceful no-provider error text (no `FrontmostTabRegistry`
-        //    provider is registered in this headless test process).
+        // 4. Assert the round-trip: a tool_use for mcp__evo__read_current_page, a
+        //    corresponding tool_result block, and that the tool_result is
+        //    well-formed for one of the two legitimate environment outcomes (see
+        //    file header) rather than one hardcoded shape.
+        Self.assertRoundTrip(output: output)
+    }
+
+    // MARK: - Helpers
+
+    /// Asserts a tool_use for `mcp__evo__read_current_page`, a corresponding
+    /// tool_result block, and that the tool_result is well-formed for one of
+    /// the two legitimate environment outcomes (see file header) rather than
+    /// one hardcoded shape.
+    private static func assertRoundTrip(output: String) {
         #expect(
             output.contains("mcp__evo__read_current_page"),
             "expected a tool_use for mcp__evo__read_current_page in claude output:\n\(output)"
@@ -85,13 +117,51 @@ struct EvoToolServerSmokeTests {
             output.contains("tool_result"),
             "expected a tool_result block in claude output:\n\(output)"
         )
+        let toolResult = parseToolResult(from: output)
         #expect(
-            output.contains("no active tab available"),
-            "expected the tool's no-active-tab error text in claude output:\n\(output)"
+            toolResult != nil,
+            "expected a parsable tool_result content block in claude output:\n\(output)"
+        )
+        guard let toolResult else { return }
+        let isNoProviderShape = toolResult.isError && toolResult.text.contains("no active tab available")
+        let isLiveProviderShape = !toolResult.isError
+        #expect(
+            isNoProviderShape || isLiveProviderShape,
+            """
+            expected the tool_result to match one of the two legitimate shapes — \
+            no provider (isError:true, text contains "no active tab available") or \
+            live provider (isError:false, any text) — got isError:\(toolResult.isError) \
+            text:\(toolResult.text.prefix(200))
+            """
         )
     }
 
-    // MARK: - Helpers
+    /// Parses `claude`'s `--output-format stream-json` stdout for the first
+    /// `tool_result` content block and returns its text + error flag, or `nil`
+    /// if no such block is present/parsable.
+    private static func parseToolResult(from output: String) -> (text: String, isError: Bool)? {
+        for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard
+                let data = line.data(using: .utf8),
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let message = json["message"] as? [String: Any],
+                let content = message["content"] as? [[String: Any]]
+            else { continue }
+
+            for item in content where item["type"] as? String == "tool_result" {
+                let isError = item["is_error"] as? Bool ?? false
+                let text: String = if let str = item["content"] as? String {
+                    str
+                } else if let blocks = item["content"] as? [[String: Any]] {
+                    blocks.compactMap { $0["text"] as? String }.joined()
+                } else {
+                    ""
+                }
+                return (text, isError)
+            }
+        }
+        return nil
+    }
 
     /// Resolves the `claude` binary path through a login shell, or `nil` if absent.
     private func resolveClaudeBinary() -> String? {

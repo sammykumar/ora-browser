@@ -31,6 +31,8 @@ struct EvoRoot: View {
     let historyContext: ModelContext
     let downloadContext: ModelContext
     @State private var window: NSWindow?
+    /// Keeps the provider alive; `FrontmostTabRegistry` only holds it weakly.
+    @State private var claudePageProvider: LiveActiveTabTextProvider?
 
     init(isPrivate: Bool = false) {
         _privacyMode = StateObject(wrappedValue: PrivacyMode(isPrivate: isPrivate))
@@ -108,6 +110,10 @@ struct EvoRoot: View {
             .withTheme()
             .enableInjection()
             .onAppear {
+                let pageProvider = LiveActiveTabTextProvider(tabManager: tabManager)
+                claudePageProvider = pageProvider
+                FrontmostTabRegistry.shared.setFrontmost(pageProvider)
+
                 downloadManager.toastManager = toastManager
                 Task {
                     let containerIDs = await MainActor.run {

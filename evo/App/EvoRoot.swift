@@ -23,6 +23,8 @@ struct EvoRoot: View {
     @StateObject private var sidebarManager = SidebarManager()
     @StateObject private var toolbarManager = ToolbarManager()
     @StateObject private var dialogManager = DialogManager()
+    @StateObject private var claudeChat: ClaudeChatManager
+    @StateObject private var claudePanel = ClaudePanelManager()
     private let toastManager = ToastManager.shared
 
     @ObserveInjection var inject
@@ -75,6 +77,10 @@ struct EvoRoot: View {
                 modelContext: modelContext
             )
         )
+
+        _claudeChat = StateObject(
+            wrappedValue: ClaudeChatManager(workingDirectory: URL(fileURLWithPath: NSHomeDirectory()))
+        )
     }
 
     var body: some View {
@@ -103,6 +109,8 @@ struct EvoRoot: View {
             .environmentObject(toolbarManager)
             .environmentObject(dialogManager)
             .environmentObject(toastManager)
+            .environmentObject(claudeChat)
+            .environmentObject(claudePanel)
             .dialogs(manager: dialogManager)
             .modelContext(tabContext)
             .modelContext(historyContext)
@@ -211,6 +219,14 @@ struct EvoRoot: View {
                     guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
                     withAnimation(.easeInOut(duration: 0.2)) {
                         toolbarManager.isToolbarHidden.toggle()
+                    }
+                }
+                NotificationCenter.default.addObserver(forName: .toggleClaudePanel, object: nil, queue: .main) { note in
+                    Task { @MainActor in
+                        guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            claudePanel.toggle()
+                        }
                     }
                 }
                 NotificationCenter.default.addObserver(forName: .reloadPage, object: nil, queue: .main) { note in

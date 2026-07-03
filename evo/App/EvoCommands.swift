@@ -87,6 +87,11 @@ struct EvoCommands: Commands {
             }
             .keyboardShortcut(KeyboardShortcuts.App.toggleToolbar.keyboardShortcut)
 
+            Button("Toggle Claude Panel") {
+                NotificationCenter.default.post(name: .toggleClaudePanel, object: NSApp.keyWindow)
+            }
+            .keyboardShortcut("c", modifiers: [.command, .option])
+
             Divider()
 
             // LAYOUT

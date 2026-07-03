@@ -6,6 +6,8 @@ struct BrowserSplitView: View {
     @EnvironmentObject var toolbarManager: ToolbarManager
     @EnvironmentObject var sidebarManager: SidebarManager
     @EnvironmentObject var toastManager: ToastManager
+    @EnvironmentObject var claudePanel: ClaudePanelManager
+    @EnvironmentObject var claudeChat: ClaudeChatManager
 
     private var targetSide: SplitSide {
         sidebarManager.sidebarPosition == .primary ? .primary : .secondary
@@ -76,6 +78,18 @@ struct BrowserSplitView: View {
     }
 
     private func contentView() -> some View {
+        Group {
+            if claudePanel.isVisible {
+                HSplit(left: { webContent() }, right: { ClaudeSidePanelView(chat: claudeChat) })
+                    .fraction(claudePanel.fraction)
+                    .constraints(minPFraction: 0.4, minSFraction: 0.2)
+            } else {
+                webContent()
+            }
+        }
+    }
+
+    private func webContent() -> some View {
         Group {
             if let activeTab = tabManager.activeTab {
                 BrowserContentContainer {

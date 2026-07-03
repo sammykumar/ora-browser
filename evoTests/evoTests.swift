@@ -5,8 +5,8 @@
 //  Created by keni on 6/21/25.
 //
 
-import Foundation
 @testable import Evo
+import Foundation
 import Testing
 
 private final class RequestCountingURLProtocol: URLProtocol, @unchecked Sendable {

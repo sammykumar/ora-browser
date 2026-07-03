@@ -20,7 +20,7 @@ enum ClaudeBinaryLocator {
                 p.arguments = ["-lc", "which claude"]
                 let out = Pipe()
                 p.standardOutput = out
-                try? p.run()
+                do { try p.run() } catch { return nil }
                 p.waitUntilExit()
                 let data = out.fileHandleForReading.readDataToEndOfFile()
                 let s = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)

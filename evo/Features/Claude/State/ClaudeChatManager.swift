@@ -79,6 +79,22 @@ import Foundation
 
     func stop() {
         session?.interrupt()
+        // Drop anything queued during session creation so it doesn't forward
+        // once the session lands after the user already hit Stop.
+        pendingSends.removeAll()
+        isRunning = false
+    }
+
+    /// Tears down the session, its subprocess, and the event-pump task.
+    /// Idempotent — safe to call more than once (e.g. from both
+    /// `.onDisappear` and an `NSWindow.willCloseNotification` observer).
+    func shutdown() {
+        pump?.cancel()
+        pump = nil
+        session?.terminate()
+        session = nil
+        pendingSends.removeAll()
+        isCreatingSession = false
         isRunning = false
     }
 

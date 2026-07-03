@@ -17,8 +17,12 @@ final class ClaudeEngine {
     private init() {}
 
     func makeSession(workingDirectory: URL) async throws -> ClaudeSession {
+        // `resolve()` shells out synchronously (`waitUntilExit()`); hop off
+        // the calling actor (typically MainActor, via ClaudeChatManager.send)
+        // so first-message latency doesn't stall the UI.
+        let result = await Task.detached { ClaudeBinaryLocator.resolve() }.value
         let binary: String
-        switch ClaudeBinaryLocator.resolve() {
+        switch result {
         case let .success(p): binary = p
         case .failure:
             throw NSError(domain: "Evo.Claude", code: 1, userInfo: [

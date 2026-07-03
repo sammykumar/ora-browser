@@ -117,6 +117,9 @@ struct EvoRoot: View {
             .modelContext(downloadContext)
             .withTheme()
             .enableInjection()
+            .onDisappear {
+                claudeChat.shutdown()
+            }
             .onAppear {
                 let pageProvider = LiveActiveTabTextProvider(tabManager: tabManager)
                 claudePageProvider = pageProvider
@@ -161,6 +164,18 @@ struct EvoRoot: View {
                     }
                     return false
                 }
+
+                // Tear down the Claude subprocess/session when this window closes.
+                // `.onDisappear` above covers the common teardown path; this
+                // observer is belt-and-braces for cases where the view hierarchy
+                // doesn't disappear on window close — `shutdown()` is idempotent.
+                NotificationCenter.default
+                    .addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
+                        Task { @MainActor in
+                            guard note.object as? NSWindow === window else { return }
+                            claudeChat.shutdown()
+                        }
+                    }
 
                 // Cmd+Q quit confirmation
                 NotificationCenter.default.addObserver(forName: .quitRequested, object: nil, queue: .main) { note in

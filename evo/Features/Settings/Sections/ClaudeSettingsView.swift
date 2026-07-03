@@ -21,11 +21,16 @@ struct ClaudeSettingsView: View {
 
                     Button("Detect") {
                         detectState = .idle
-                        switch ClaudeBinaryLocator.resolve() {
-                        case let .success(path):
-                            detectState = .resolved(path)
-                        case .failure:
-                            detectState = .failed
+                        Task {
+                            // Resolution shells out synchronously; run it off
+                            // the main actor so the button doesn't stall the UI.
+                            let result = await Task.detached { ClaudeBinaryLocator.resolve() }.value
+                            switch result {
+                            case let .success(path):
+                                detectState = .resolved(path)
+                            case .failure:
+                                detectState = .failed
+                            }
                         }
                     }
 

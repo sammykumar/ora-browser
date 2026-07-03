@@ -16,9 +16,10 @@
 //  confirmed the live-provider shape occurs in practice — see task-6-report.md.
 //
 //  This test makes a REAL authenticated `claude` API call — that is expected here.
-//  It is gated: if the `claude` binary is not found via a login shell, or if we
-//  cannot supply credentials to an isolated `claude` config, the test returns early
-//  (passes) so machines without `claude`/auth don't fail the suite.
+//  It is gated via Swift Testing's `.enabled(if:)` trait: if the `claude` binary
+//  is not found via a login shell, or if no usable credentials exist to supply to
+//  an isolated `claude` config, the test is reported as SKIPPED (not passed) so
+//  machines without `claude`/auth don't fail the suite or record misleading passes.
 //
 //  Why an isolated CLAUDE_CONFIG_DIR: the developer's global `~/.claude` config
 //  loads plugins/skills (e.g. superpowers) that push `claude` into its
@@ -55,24 +56,28 @@ private let readCurrentPageUserLine = """
 """
 
 struct EvoToolServerSmokeTests {
-    @Test("claude CLI calls the evo read_current_page tool end-to-end")
+    /// Gate for the `.enabled(if:)` trait, evaluated lazily on first access:
+    /// `claude` must resolve via a login shell (so PATH matches the user's
+    /// setup) AND usable credentials must exist to supply to an isolated
+    /// config dir. When either is absent the test reports SKIPPED, not PASSED.
+    private static let canRunSmokeTest: Bool =
+        resolveClaudeBinary() != nil && credentialsAvailable()
+
+    @Test(
+        "claude CLI calls the evo read_current_page tool end-to-end",
+        .enabled(if: EvoToolServerSmokeTests.canRunSmokeTest)
+    )
     func claudeCallsEvoReadCurrentPageTool() async throws {
-        // Gate: resolve `claude` via a login shell so PATH matches the user's setup.
-        guard let claudePath = resolveClaudeBinary() else {
-            // swiftlint:disable:next no_print_statements
-            print("[EvoToolServerSmokeTests] `claude` not found on PATH — skipping the round-trip proof.")
-            return
-        }
+        // The trait above already gated on binary + credential availability;
+        // `#require` fails loudly if either vanished between trait evaluation
+        // and the test body (rather than silently recording a pass).
+        let claudePath = try #require(Self.resolveClaudeBinary())
 
         // Prepare an isolated, plugin-free claude config dir with working auth.
         let configDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("evo-claude-home-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: configDir) }
-        guard prepareIsolatedClaudeConfig(at: configDir) else {
-            // swiftlint:disable:next no_print_statements
-            print("[EvoToolServerSmokeTests] no usable claude credentials to isolate — skipping the round-trip proof.")
-            return
-        }
+        try #require(prepareIsolatedClaudeConfig(at: configDir))
 
         // 1. Start the in-process MCP server on an ephemeral loopback port.
         let url = try await EvoToolServer.shared.start()
@@ -164,7 +169,7 @@ struct EvoToolServerSmokeTests {
     }
 
     /// Resolves the `claude` binary path through a login shell, or `nil` if absent.
-    private func resolveClaudeBinary() -> String? {
+    private static func resolveClaudeBinary() -> String? {
         let output = runProcess(
             executable: "/bin/zsh",
             arguments: ["-lc", "which claude"],
@@ -174,6 +179,36 @@ struct EvoToolServerSmokeTests {
         let path = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) else { return nil }
         return path
+    }
+
+    /// True when credentials usable by an isolated config dir exist: either an
+    /// `ANTHROPIC_API_KEY` in the environment, or a parsable Claude Code OAuth
+    /// token in the login keychain.
+    private static func credentialsAvailable() -> Bool {
+        if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty {
+            return true
+        }
+        return keychainOAuthObject() != nil
+    }
+
+    /// Reads the Claude Code OAuth token object from the login keychain, or
+    /// `nil` if it is absent or unparsable.
+    private static func keychainOAuthObject() -> Any? {
+        guard let keychain = runProcess(
+            executable: "/usr/bin/security",
+            arguments: ["find-generic-password", "-s", "Claude Code-credentials", "-w"],
+            environment: nil
+        ), keychain.status == 0 else {
+            return nil
+        }
+        guard
+            let data = keychain.stdout.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let oauth = json["claudeAiOauth"]
+        else {
+            return nil
+        }
+        return oauth
     }
 
     /// Populates `configDir` with a minimal `claude` config plus credentials so an
@@ -198,19 +233,7 @@ struct EvoToolServerSmokeTests {
         }
 
         // Otherwise replicate the OAuth token from the login keychain into the dir.
-        guard let keychain = runProcess(
-            executable: "/usr/bin/security",
-            arguments: ["find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            environment: nil
-        ), keychain.status == 0 else {
-            return false
-        }
-
-        guard
-            let data = keychain.stdout.data(using: .utf8),
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let oauth = json["claudeAiOauth"]
-        else {
+        guard let oauth = Self.keychainOAuthObject() else {
             return false
         }
 
@@ -246,7 +269,7 @@ struct EvoToolServerSmokeTests {
         }
         environment["CLAUDE_CONFIG_DIR"] = configDir.path
 
-        let output = runProcess(
+        let output = Self.runProcess(
             executable: binary,
             arguments: [
                 "-p",
@@ -272,7 +295,7 @@ struct EvoToolServerSmokeTests {
 
     /// Runs a subprocess, optionally writing `stdin`, and captures stdout. Terminates
     /// after `timeout` seconds. Returns `nil` if the process could not be launched.
-    private func runProcess(
+    private static func runProcess(
         executable: String,
         arguments: [String],
         environment: [String: String]?,

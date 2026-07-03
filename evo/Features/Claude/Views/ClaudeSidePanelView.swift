@@ -10,7 +10,6 @@ import SwiftUI
 
 struct ClaudeSidePanelView: View {
     @ObservedObject var chat: ClaudeChatManager
-    @State private var draft = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +28,7 @@ struct ClaudeSidePanelView: View {
             }
             Divider()
             HStack(spacing: 8) {
-                TextField("Ask Claude about this page…", text: $draft, axis: .vertical)
+                TextField("Ask Claude about this page…", text: $chat.draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .onSubmit(submit)
                 Button(action: chat.isRunning ? chat.stop : submit) {
@@ -37,7 +36,7 @@ struct ClaudeSidePanelView: View {
                         .font(.title2)
                 }
                 .buttonStyle(.plain)
-                .disabled(draft.isEmpty && !chat.isRunning)
+                .disabled(chat.draft.isEmpty && !chat.isRunning)
             }
             .padding(12)
         }
@@ -50,9 +49,9 @@ struct ClaudeSidePanelView: View {
         // manager itself guards double session-creation, but a second send
         // mid-run would still interleave turns within one session.
         guard !chat.isRunning else { return }
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = chat.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         chat.send(text)
-        draft = ""
+        chat.draft = ""
     }
 }

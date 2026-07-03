@@ -26,6 +26,7 @@ import Foundation
 
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var isRunning = false
+    @Published var draft: String = ""
 
     private let workingDirectory: URL
     private var session: ClaudeSession?

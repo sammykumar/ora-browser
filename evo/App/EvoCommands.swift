@@ -92,6 +92,10 @@ struct EvoCommands: Commands {
             }
             .keyboardShortcut("c", modifiers: [.command, .option])
 
+            Button("Hide Panel Rail") {
+                NotificationCenter.default.post(name: .togglePanelRail, object: NSApp.keyWindow)
+            }
+
             Divider()
 
             // LAYOUT

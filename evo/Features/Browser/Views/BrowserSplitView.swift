@@ -77,16 +77,16 @@ struct BrowserSplitView: View {
         }
     }
 
+    /// The Claude panel is always mounted as the secondary side of a nested HSplit and hidden via
+    /// `claudePanel.hiddenPanel`, mirroring how the outer HSplit above hides the sidebar with
+    /// `sidebarManager.hiddenSidebar`. This keeps `webContent()` (and the WKWebView bridge inside it) mounted
+    /// across every panel toggle, instead of tearing down and remounting the whole content pane.
     private func contentView() -> some View {
-        Group {
-            if claudePanel.isVisible {
-                HSplit(left: { webContent() }, right: { ClaudeSidePanelView(chat: claudeChat) })
-                    .fraction(claudePanel.fraction)
-                    .constraints(minPFraction: 0.4, minSFraction: 0.2)
-            } else {
-                webContent()
-            }
-        }
+        HSplit(left: { webContent() }, right: { ClaudeSidePanelView(chat: claudeChat) })
+            .hide(claudePanel.hiddenPanel)
+            .fraction(claudePanel.fraction)
+            .constraints(minPFraction: 0.4, minSFraction: 0.2)
+            .styling(hideSplitter: true)
     }
 
     private func webContent() -> some View {

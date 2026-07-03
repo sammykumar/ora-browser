@@ -3,7 +3,9 @@
 //  evoTests
 //
 //  HARD-GATE spike proof: the real `claude` CLI connects to Evo's in-process MCP
-//  server over localhost HTTP and successfully calls the `ping` tool end-to-end.
+//  server over localhost HTTP and successfully calls the `read_current_page` tool
+//  end-to-end. No `FrontmostTabRegistry` provider is registered in this headless
+//  test process, so this also pins the graceful no-active-tab error path.
 //
 //  This test makes a REAL authenticated `claude` API call — that is expected here.
 //  It is gated: if the `claude` binary is not found via a login shell, or if we
@@ -13,10 +15,11 @@
 //  Why an isolated CLAUDE_CONFIG_DIR: the developer's global `~/.claude` config
 //  loads plugins/skills (e.g. superpowers) that push `claude` into its
 //  "tool search" mode, which defers MCP tools behind a ToolSearch step and, in
-//  practice, prevents the model from invoking `mcp__evo__ping` directly. Pointing
-//  `claude` at a minimal, plugin-free config dir makes the MCP tool directly
-//  callable. We replicate the user's OAuth token (or reuse ANTHROPIC_API_KEY) so
-//  auth still works in that isolated dir. See task-1-report.md for the full finding.
+//  practice, prevents the model from invoking `mcp__evo__read_current_page`
+//  directly. Pointing `claude` at a minimal, plugin-free config dir makes the MCP
+//  tool directly callable. We replicate the user's OAuth token (or reuse
+//  ANTHROPIC_API_KEY) so auth still works in that isolated dir. See
+//  task-1-report.md for the full finding.
 //
 
 @testable import Evo
@@ -25,13 +28,14 @@ import Testing
 
 /// The exact stream-json user line fed to `claude` on stdin (kept at file scope so
 /// the literal fits the 120-column limit).
-private let pingUserLine = """
-{"type":"user","message":{"role":"user","content":"Call the evo ping tool and tell me exactly what it returns."}}
+private let readCurrentPageUserLine = """
+{"type":"user","message":{"role":"user","content":\
+"Call the evo read_current_page tool and tell me exactly what it returns."}}
 """
 
 struct EvoToolServerSmokeTests {
-    @Test("claude CLI calls the evo ping tool end-to-end")
-    func claudeCallsEvoPingTool() async throws {
+    @Test("claude CLI calls the evo read_current_page tool end-to-end")
+    func claudeCallsEvoReadCurrentPageTool() async throws {
         // Gate: resolve `claude` via a login shell so PATH matches the user's setup.
         guard let claudePath = resolveClaudeBinary() else {
             // swiftlint:disable:next no_print_statements
@@ -67,21 +71,23 @@ struct EvoToolServerSmokeTests {
             binary: claudePath,
             configDir: configDir,
             mcpConfigPath: mcpConfigURL.path,
-            stdinLine: pingUserLine
+            stdinLine: readCurrentPageUserLine
         )
 
-        // 4. Assert the round-trip: a tool_use for mcp__evo__ping AND a pong result.
+        // 4. Assert the round-trip: a tool_use for mcp__evo__read_current_page AND
+        //    the graceful no-provider error text (no `FrontmostTabRegistry`
+        //    provider is registered in this headless test process).
         #expect(
-            output.contains("mcp__evo__ping"),
-            "expected a tool_use for mcp__evo__ping in claude output:\n\(output)"
+            output.contains("mcp__evo__read_current_page"),
+            "expected a tool_use for mcp__evo__read_current_page in claude output:\n\(output)"
         )
         #expect(
             output.contains("tool_result"),
             "expected a tool_result block in claude output:\n\(output)"
         )
         #expect(
-            output.contains("pong"),
-            "expected the ping tool's `pong` result in claude output:\n\(output)"
+            output.contains("no active tab available"),
+            "expected the tool's no-active-tab error text in claude output:\n\(output)"
         )
     }
 
@@ -180,7 +186,7 @@ struct EvoToolServerSmokeTests {
                 "--mcp-config", mcpConfigPath,
                 "--strict-mcp-config",
                 "--permission-mode", "default",
-                "--allowedTools", "mcp__evo__ping"
+                "--allowedTools", "mcp__evo__read_current_page"
             ],
             environment: environment,
             stdin: stdinLine + "\n",

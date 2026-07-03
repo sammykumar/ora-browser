@@ -23,16 +23,17 @@
 //  response writer (~one file), not the MCP protocol itself.
 //
 //  Stateless mode (single JSON responses, no SSE, no session id) is sufficient for
-//  the `ping` round-trip. The `claude` CLI's Streamable HTTP client sends
-//  `Accept: application/json, text/event-stream`; the stateless `.jsonOnly` Accept
-//  validator accepts that (it only requires `application/json` to be present).
+//  the `read_current_page` round-trip. The `claude` CLI's Streamable HTTP client
+//  sends `Accept: application/json, text/event-stream`; the stateless `.jsonOnly`
+//  Accept validator accepts that (it only requires `application/json` to be
+//  present).
 //
 
 import Foundation
 import MCP
 import Network
 
-/// In-process MCP server that exposes a single trivial `ping` tool over localhost
+/// In-process MCP server that exposes the `read_current_page` tool over localhost
 /// HTTP, for the `claude` CLI to connect to via `--mcp-config`.
 actor EvoToolServer {
     static let shared = EvoToolServer()
@@ -65,14 +66,20 @@ actor EvoToolServer {
                 "properties": .object([:])
             ])
             return ListTools.Result(tools: [
-                Tool(name: "ping", description: "Returns pong", inputSchema: schema)
+                Tool(
+                    name: "read_current_page",
+                    description: "Reads the visible text of the browser's current active tab",
+                    inputSchema: schema
+                )
             ])
         }
         await server.withMethodHandler(CallTool.self) { params in
-            guard params.name == "ping" else {
+            guard params.name == "read_current_page" else {
                 return CallTool.Result(content: [.text("unknown tool")], isError: true)
             }
-            return CallTool.Result(content: [.text("pong")], isError: false)
+            let provider = await MainActor.run { FrontmostTabRegistry.shared.provider }
+            let out = await ReadCurrentPageTool.run(provider: provider)
+            return CallTool.Result(content: [.text(out.text)], isError: out.isError)
         }
 
         try await server.start(transport: transport)

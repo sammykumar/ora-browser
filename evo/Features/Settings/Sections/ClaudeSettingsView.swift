@@ -1,8 +1,14 @@
 import SwiftUI
 
 struct ClaudeSettingsView: View {
+    private enum DetectState {
+        case idle
+        case resolved(String)
+        case failed
+    }
+
     @AppStorage("claude.binaryPath") private var binaryPath = ""
-    @State private var resolved = ""
+    @State private var detectState: DetectState = .idle
 
     var body: some View {
         SettingsSection {
@@ -13,18 +19,27 @@ struct ClaudeSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("Binary path (leave blank to auto-detect)", text: $binaryPath)
 
-                    HStack {
-                        Button("Detect") {
-                            if case let .success(path) = ClaudeBinaryLocator.resolve() {
-                                resolved = path
-                            }
+                    Button("Detect") {
+                        detectState = .idle
+                        switch ClaudeBinaryLocator.resolve() {
+                        case let .success(path):
+                            detectState = .resolved(path)
+                        case .failure:
+                            detectState = .failed
                         }
+                    }
 
-                        if !resolved.isEmpty {
-                            Text("Resolved: \(resolved)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    switch detectState {
+                    case .idle:
+                        EmptyView()
+                    case let .resolved(path):
+                        Text("Resolved: \(path)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .failed:
+                        Text("claude not found — install the Claude CLI or enter its path above")
+                            .foregroundColor(.red)
+                            .font(.caption)
                     }
                 }
             }

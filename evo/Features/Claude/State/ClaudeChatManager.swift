@@ -30,6 +30,16 @@ import Foundation
     private let workingDirectory: URL
     private var session: ClaudeSession?
     private var pump: Task<Void, Never>?
+    /// Creation guard: set synchronously (within one main-actor turn) BEFORE
+    /// the `makeSession` await, so a second `send(_:)` arriving mid-creation
+    /// can never observe `session == nil` and spawn a second subprocess.
+    private var isCreatingSession = false
+    /// Texts that arrived while the session was still being created.
+    /// Chosen semantics: the user message is appended immediately
+    /// (synchronous), the text is queued, and all queued texts are forwarded
+    /// in arrival order once the one-and-only session lands. On creation
+    /// failure the queue is dropped and the error surfaces as a ⚠️ chat row.
+    private var pendingSends: [String] = []
 
     init(workingDirectory: URL) {
         self.workingDirectory = workingDirectory
@@ -38,21 +48,32 @@ import Foundation
     func send(_ text: String) {
         messages.append(.init(role: .user, text: text))
         isRunning = true
+        if let session {
+            session.send(text)
+            return
+        }
+        pendingSends.append(text)
+        // Atomic check-then-set within this main-actor turn (no await above):
+        // at most one creation Task is ever started.
+        guard !isCreatingSession else { return }
+        isCreatingSession = true
         Task {
             do {
-                if session == nil {
-                    let newSession = try await ClaudeEngine.shared.makeSession(workingDirectory: workingDirectory)
-                    session = newSession
-                    pump = Task { [weak self] in
-                        for await event in newSession.events {
-                            self?.apply(event)
-                        }
+                let newSession = try await ClaudeEngine.shared.makeSession(workingDirectory: workingDirectory)
+                session = newSession
+                pump = Task { [weak self] in
+                    for await event in newSession.events {
+                        self?.apply(event)
                     }
                 }
-                session?.send(text)
+                for pending in pendingSends {
+                    newSession.send(pending)
+                }
             } catch {
                 apply(.failed(error.localizedDescription))
             }
+            pendingSends.removeAll()
+            isCreatingSession = false
         }
     }
 
@@ -68,7 +89,9 @@ import Foundation
         case let .assistantText(text):
             messages.append(.init(role: .assistant, text: text))
         case let .toolUse(name, _):
-            messages.append(.init(role: .tool, text: name.replacingOccurrences(of: "mcp__evo__", with: "")))
+            let prefix = "mcp__evo__"
+            let label = name.hasPrefix(prefix) ? String(name.dropFirst(prefix.count)) : name
+            messages.append(.init(role: .tool, text: label))
         case .toolResult:
             break
         case .result:

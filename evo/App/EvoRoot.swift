@@ -247,7 +247,9 @@ struct EvoRoot: View {
                 NotificationCenter.default.addObserver(forName: .togglePanelRail, object: nil, queue: .main) { note in
                     Task { @MainActor in
                         guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
-                        railManager.isRailVisible.toggle()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            railManager.isRailVisible.toggle()
+                        }
                     }
                 }
                 NotificationCenter.default.addObserver(forName: .reloadPage, object: nil, queue: .main) { note in

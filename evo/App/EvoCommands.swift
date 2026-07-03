@@ -6,6 +6,7 @@ struct EvoCommands: Commands {
     @AppStorage("ui.sidebar.position") private var sidebarPosition: SidebarPosition = .primary
     @AppStorage("ui.toolbar.hidden") private var isToolbarHidden: Bool = false
     @AppStorage("ui.toolbar.showfullurl") private var showFullURL: Bool = false
+    @AppStorage("rail.isVisible") private var isRailVisible = true
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
@@ -92,7 +93,7 @@ struct EvoCommands: Commands {
             }
             .keyboardShortcut("c", modifiers: [.command, .option])
 
-            Button("Hide Panel Rail") {
+            Button(isRailVisible ? "Hide Panel Rail" : "Show Panel Rail") {
                 NotificationCenter.default.post(name: .togglePanelRail, object: NSApp.keyWindow)
             }
 

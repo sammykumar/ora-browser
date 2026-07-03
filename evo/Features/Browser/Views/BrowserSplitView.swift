@@ -6,7 +6,7 @@ struct BrowserSplitView: View {
     @EnvironmentObject var toolbarManager: ToolbarManager
     @EnvironmentObject var sidebarManager: SidebarManager
     @EnvironmentObject var toastManager: ToastManager
-    @EnvironmentObject var claudePanel: ClaudePanelManager
+    @EnvironmentObject var railManager: PanelRailManager
     @EnvironmentObject var claudeChat: ClaudeChatManager
 
     private var targetSide: SplitSide {
@@ -77,16 +77,25 @@ struct BrowserSplitView: View {
         }
     }
 
-    /// The Claude panel is always mounted as the secondary side of a nested HSplit and hidden via
-    /// `claudePanel.hiddenPanel`, mirroring how the outer HSplit above hides the sidebar with
-    /// `sidebarManager.hiddenSidebar`. This keeps `webContent()` (and the WKWebView bridge inside it) mounted
-    /// across every panel toggle, instead of tearing down and remounting the whole content pane.
+    /// The panel slot is always mounted as the secondary side of a nested HSplit and hidden via
+    /// `railManager.hiddenPanel`, mirroring how the outer HSplit above hides the sidebar. This keeps
+    /// `webContent()` (and the WKWebView bridge inside it) mounted across every panel toggle.
     private func contentView() -> some View {
-        HSplit(left: { webContent() }, right: { ClaudeSidePanelView(chat: claudeChat) })
-            .hide(claudePanel.hiddenPanel)
-            .fraction(claudePanel.fraction)
+        HSplit(left: { webContent() }, right: { panelSlot() })
+            .hide(railManager.hiddenPanel)
+            .fraction(railManager.fraction)
             .constraints(minPFraction: 0.4, minSFraction: 0.2)
             .styling(hideSplitter: true)
+    }
+
+    /// Exhaustive over SidePanel: adding a registry case without a view branch is a compile error.
+    /// nil renders the Claude view behind the hidden holder — keeps it mounted so conversation and
+    /// composer draft survive close/open (verified shipped behavior).
+    @ViewBuilder private func panelSlot() -> some View {
+        switch railManager.activePanel {
+        case .claude, nil:
+            ClaudeSidePanelView(chat: claudeChat)
+        }
     }
 
     private func webContent() -> some View {

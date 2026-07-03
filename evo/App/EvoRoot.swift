@@ -24,7 +24,7 @@ struct EvoRoot: View {
     @StateObject private var toolbarManager = ToolbarManager()
     @StateObject private var dialogManager = DialogManager()
     @StateObject private var claudeChat: ClaudeChatManager
-    @StateObject private var claudePanel = ClaudePanelManager()
+    @StateObject private var railManager = PanelRailManager()
     private let toastManager = ToastManager.shared
 
     @ObserveInjection var inject
@@ -110,7 +110,7 @@ struct EvoRoot: View {
             .environmentObject(dialogManager)
             .environmentObject(toastManager)
             .environmentObject(claudeChat)
-            .environmentObject(claudePanel)
+            .environmentObject(railManager)
             .dialogs(manager: dialogManager)
             .modelContext(tabContext)
             .modelContext(historyContext)
@@ -240,7 +240,15 @@ struct EvoRoot: View {
                     Task { @MainActor in
                         guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            claudePanel.toggle()
+                            railManager.toggle(.claude)
+                        }
+                    }
+                }
+                NotificationCenter.default.addObserver(forName: .togglePanelRail, object: nil, queue: .main) { note in
+                    Task { @MainActor in
+                        guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            railManager.isRailVisible.toggle()
                         }
                     }
                 }

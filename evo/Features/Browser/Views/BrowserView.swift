@@ -64,21 +64,25 @@ struct BrowserView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            BrowserSplitView()
-                .ignoresSafeArea(.all)
-                .background(theme.subtleWindowBackgroundColor)
-                .background(
-                    BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                        .ignoresSafeArea(.all)
-                )
-                .overlay {
-                    if appState.showLauncher, tabManager.activeTab != nil {
-                        LauncherView()
-                    }
-                    if appState.isFloatingTabSwitchVisible {
-                        FloatingTabSwitcher()
-                    }
+            HStack(spacing: 0) {
+                BrowserSplitView()
+                    .ignoresSafeArea(.all)
+                    .background(theme.subtleWindowBackgroundColor)
+                    .background(
+                        BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                            .ignoresSafeArea(.all)
+                    )
+                PanelRailView()
+                    .ignoresSafeArea(.all)
+            }
+            .overlay {
+                if appState.showLauncher, tabManager.activeTab != nil {
+                    LauncherView()
                 }
+                if appState.isFloatingTabSwitchVisible {
+                    FloatingTabSwitcher()
+                }
+            }
 
             if sidebarManager.isSidebarHidden {
                 FloatingSidebarOverlay(

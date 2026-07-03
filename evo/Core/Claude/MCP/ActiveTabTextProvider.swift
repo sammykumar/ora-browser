@@ -53,6 +53,8 @@ final class LiveActiveTabTextProvider: ActiveTabTextProvider {
 
     func currentPageText() async -> Swift.Result<String, PageReadError> {
         guard let tab = tabManager.activeTab else { return .failure(.noActiveTab) }
+        // Unhydrated tab's evaluateJavaScript silently no-ops; ensure tab is ready before continuing.
+        guard tab.browserPage != nil else { return .failure(.noActiveTab) }
         return await withCheckedContinuation { continuation in
             tab.evaluateJavaScript("document.body.innerText") { value, error in
                 if let error {

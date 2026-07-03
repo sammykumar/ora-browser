@@ -7,6 +7,7 @@ enum SettingsTab: String, Hashable, CaseIterable {
     case passwords
     case shortcuts
     case searchEngines
+    case claude
 
     var title: String {
         switch self {
@@ -15,6 +16,7 @@ enum SettingsTab: String, Hashable, CaseIterable {
         case .passwords: return "Passwords"
         case .shortcuts: return "Shortcuts"
         case .searchEngines: return "Search"
+        case .claude: return "Claude"
         }
     }
 
@@ -25,6 +27,7 @@ enum SettingsTab: String, Hashable, CaseIterable {
         case .passwords: return "key.horizontal"
         case .shortcuts: return "command"
         case .searchEngines: return "magnifyingglass"
+        case .claude: return "sparkles"
         }
     }
 
@@ -40,6 +43,8 @@ enum SettingsTab: String, Hashable, CaseIterable {
             return "Keyboard shortcuts and command mappings."
         case .searchEngines:
             return "Default search providers, AI engines, and custom shortcuts."
+        case .claude:
+            return "AI assistant & CLI path"
         }
     }
 }
@@ -99,6 +104,8 @@ struct SettingsContentView: View {
             ShortcutsSettingsView()
         case .searchEngines:
             SearchEngineSettingsView()
+        case .claude:
+            ClaudeSettingsView()
         }
     }
 }

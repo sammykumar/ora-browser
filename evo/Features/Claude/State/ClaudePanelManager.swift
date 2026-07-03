@@ -11,9 +11,10 @@ import SwiftUI
 
 @MainActor final class ClaudePanelManager: ObservableObject {
     /// Drives the nested HSplit's secondary (right) side in `BrowserSplitView`. `nil` means visible;
-    /// `.secondary` means hidden. Starts hidden — the panel is closed by default. Mirrors
-    /// `SidebarManager.hiddenSidebar`, which the outer HSplit in the same file uses the same way.
-    @Published var hiddenPanel = SideHolder.usingUserDefaults(.secondary, key: "claude.panel.visibility")
+    /// `.secondary` means hidden. Starts hidden — the panel is closed by default per-launch (visibility
+    /// is not persisted). Mirrors `SidebarManager.hiddenSidebar`, which the outer HSplit in the same
+    /// file uses the same way.
+    @Published var hiddenPanel = SideHolder(.secondary)
     let fraction = FractionHolder.usingUserDefaults(0.7, key: "claude.panel.fraction")
 
     /// Convenience Bool for menu/UI state, derived from `hiddenPanel` (which remains the source of truth).

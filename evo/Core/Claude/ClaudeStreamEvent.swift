@@ -7,14 +7,14 @@
 //  return `nil` so a caller reading a subprocess pipe line-by-line can just
 //  skip them.
 //
-//  Key names below were verified against a real captured fixture (see
-//  `evoTests/Claude/Fixtures/hello.jsonl`) rather than assumed. One reality
-//  discovered there: this developer's plugin-heavy `~/.claude` config injects
-//  extra `type:"system"` lines (subtypes `hook_started` / `hook_response`) for
-//  SessionStart hooks, alongside the real `subtype:"init"` line that carries
-//  the session id. Only `subtype:"init"` is treated as the session-start
-//  event so those hook-noise lines don't spuriously double-fire
-//  `.sessionStarted`.
+//  Key names below were verified against real captured fixtures (see
+//  `evoTests/Claude/Fixtures/hello.jsonl` and `Fixtures/tool-use.jsonl`)
+//  rather than assumed. One reality discovered there: environments with
+//  SessionStart hooks configured produce `type:"system"` lines (subtypes
+//  `hook_started` / `hook_response`) that also carry `session_id`, alongside
+//  the real `subtype:"init"` line that carries the session id. Only
+//  `subtype:"init"` is treated as the session-start event so those
+//  hook-noise lines don't spuriously double-fire `.sessionStarted`.
 //
 
 import Foundation

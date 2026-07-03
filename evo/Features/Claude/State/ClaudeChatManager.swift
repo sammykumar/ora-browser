@@ -60,6 +60,11 @@ import Foundation
         Task {
             do {
                 let newSession = try await ClaudeEngine.shared.makeSession(workingDirectory: workingDirectory)
+                guard isCreatingSession else {
+                    // shutdown() cleared isCreatingSession during the await; kill the fresh session instead.
+                    newSession.terminate()
+                    return
+                }
                 session = newSession
                 pump = Task { [weak self] in
                     for await event in newSession.events {

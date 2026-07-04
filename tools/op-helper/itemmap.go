@@ -2,6 +2,25 @@ package main
 
 import "github.com/1password/onepassword-sdk-go"
 
+// getAllBatchLimit is the maximum number of item IDs Items().GetAll accepts per call.
+const getAllBatchLimit = 50
+
+// chunkIDs splits ids into consecutive slices of at most size elements.
+func chunkIDs(ids []string, size int) [][]string {
+	if size <= 0 {
+		return [][]string{ids}
+	}
+	var chunks [][]string
+	for start := 0; start < len(ids); start += size {
+		end := start + size
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunks = append(chunks, ids[start:end])
+	}
+	return chunks
+}
+
 // itemToMetadata builds the metadata DTO. It reads the username + hasTotp from the
 // full item but NEVER copies the password.
 func itemToMetadata(vaultID string, ov onepassword.ItemOverview, full onepassword.Item) itemDTO {

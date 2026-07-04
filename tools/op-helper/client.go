@@ -52,17 +52,20 @@ func (s *sdkClient) listItems(ctx context.Context, vaultID string) ([]itemDTO, e
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	batch, err := s.client.Items().GetAll(ctx, vaultID, ids)
-	if err != nil {
-		return nil, err
-	}
+	// Items().GetAll caps at 50 item IDs per call, so hydrate in chunks.
 	out := make([]itemDTO, 0, len(ids))
-	for _, res := range batch.IndividualResponses {
-		if res.Content == nil {
-			continue
+	for _, chunk := range chunkIDs(ids, getAllBatchLimit) {
+		batch, err := s.client.Items().GetAll(ctx, vaultID, chunk)
+		if err != nil {
+			return nil, err
 		}
-		full := *res.Content
-		out = append(out, itemToMetadata(vaultID, byID[full.ID], full))
+		for _, res := range batch.IndividualResponses {
+			if res.Content == nil {
+				continue
+			}
+			full := *res.Content
+			out = append(out, itemToMetadata(vaultID, byID[full.ID], full))
+		}
 	}
 	return out, nil
 }

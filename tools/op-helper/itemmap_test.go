@@ -45,3 +45,31 @@ func TestExtractLoginNeverLeaksIntoMetadata(t *testing.T) {
 		t.Fatal("password leaked into metadata")
 	}
 }
+
+func TestChunkIDs(t *testing.T) {
+	ids := make([]string, 0, 123)
+	for i := 0; i < 123; i++ {
+		ids = append(ids, "id")
+	}
+	chunks := chunkIDs(ids, 50)
+	if len(chunks) != 3 {
+		t.Fatalf("expected 3 chunks for 123 ids @50, got %d", len(chunks))
+	}
+	if len(chunks[0]) != 50 || len(chunks[1]) != 50 || len(chunks[2]) != 23 {
+		t.Fatalf("bad chunk sizes: %d/%d/%d", len(chunks[0]), len(chunks[1]), len(chunks[2]))
+	}
+	// exact multiple
+	if got := len(chunkIDs(make([]string, 100), 50)); got != 2 {
+		t.Fatalf("expected 2 chunks for 100 ids @50, got %d", got)
+	}
+	// empty
+	if got := len(chunkIDs(nil, 50)); got != 0 {
+		t.Fatalf("expected 0 chunks for nil, got %d", got)
+	}
+	// no over-limit chunk
+	for _, c := range chunkIDs(make([]string, 200), 50) {
+		if len(c) > 50 {
+			t.Fatalf("chunk exceeds limit: %d", len(c))
+		}
+	}
+}

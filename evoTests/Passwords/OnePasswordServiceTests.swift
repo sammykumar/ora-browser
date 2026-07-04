@@ -26,6 +26,31 @@ struct OnePasswordServiceTests {
         func terminate() {}
     }
 
+    private final class CountingStubTransport: OpHelperTransport {
+        var onLine: ((String) -> Void)?
+        private(set) var listItemsCalls = 0
+
+        func send(line: String) throws {
+            guard let data = line.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let id = obj["id"] as? String, let method = obj["method"] as? String
+            else { return }
+            if method == "listItems" { listItemsCalls += 1 }
+            let result = switch method {
+            case "listItems":
+                "{\"items\":[{\"id\":\"i1\",\"vaultId\":\"v1\",\"title\":\"GitHub\"," +
+                    "\"username\":\"octo\",\"urls\":[\"https://github.com\"],\"hasTotp\":true}]}"
+            case "status":
+                "{\"state\":\"ready\"}"
+            default:
+                "{}"
+            }
+            onLine?("{\"id\":\"\(id)\",\"ok\":true,\"result\":\(result)}")
+        }
+
+        func terminate() {}
+    }
+
     @Test func refreshPopulatesCacheAndMatchesByHost() async throws {
         let service = OnePasswordService(transportFactory: { _ in StubTransport() })
         service.configureAccounts(["my.1password.com"])
@@ -53,7 +78,8 @@ struct OnePasswordServiceTests {
         store.onePasswordAccountName = "my.1password.com"
         defer { store.onePasswordAccountName = baselineAccountName }
 
-        let service = OnePasswordService(transportFactory: { _ in StubTransport() })
+        let transport = CountingStubTransport()
+        let service = OnePasswordService(transportFactory: { _ in transport })
 
         await service.ensureConfigured()
         #expect(service.metadata.count == 1)
@@ -62,5 +88,6 @@ struct OnePasswordServiceTests {
         // in-flight/one-time guard should make this a no-op against the warm cache.
         await service.ensureConfigured()
         #expect(service.metadata.count == 1)
+        #expect(transport.listItemsCalls == 1) // guard prevented a second spawn+refresh
     }
 }

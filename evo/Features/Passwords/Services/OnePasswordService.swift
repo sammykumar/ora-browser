@@ -79,9 +79,10 @@ final class OnePasswordService: ObservableObject {
     }
 
     func credentials(for url: URL) -> [ProviderCredential] {
-        guard let host = url.host?.lowercased() else { return [] }
+        guard let rawHost = url.host else { return [] }
+        let host = PasswordManagerService.normalizeHost(rawHost)
         return metadata.filter { credential in
-            credential.host == host || url.absoluteString.contains(credential.host)
+            PasswordManagerService.normalizeHost(credential.host) == host
         }
     }
 
@@ -118,7 +119,7 @@ final class OnePasswordService: ObservableObject {
     static func credential(from dict: [String: Any], account: String) -> ProviderCredential? {
         guard let itemID = dict["id"] as? String, let vaultID = dict["vaultId"] as? String else { return nil }
         let urls = dict["urls"] as? [String] ?? []
-        let host = urls.first.flatMap { URL(string: $0)?.host?.lowercased() } ?? ""
+        let host = urls.first.flatMap { URL(string: $0)?.host }.map(PasswordManagerService.normalizeHost) ?? ""
         return ProviderCredential(
             id: "\(account):\(itemID)",
             ref: .onePassword(accountName: account, vaultID: vaultID, itemID: itemID),

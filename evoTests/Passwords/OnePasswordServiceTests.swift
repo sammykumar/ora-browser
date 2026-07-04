@@ -36,4 +36,14 @@ struct OnePasswordServiceTests {
         #expect(matches.first?.accountLabel == "my.1password.com")
         #expect(matches.first?.hasTotp == true)
     }
+
+    @Test func doesNotMatchLookalikeOrSubstringHosts() async throws {
+        let service = OnePasswordService(transportFactory: { _ in StubTransport() })
+        service.configureAccounts(["my.1password.com"])
+        await service.refresh()
+        #expect(try service.credentials(for: #require(URL(string: "https://evil.com/?ref=github.com"))).isEmpty)
+        #expect(try service.credentials(for: #require(URL(string: "https://not-github.com/login"))).isEmpty)
+        #expect(try service.credentials(for: #require(URL(string: "https://github.com.evil.com/login"))).isEmpty)
+        #expect(try service.credentials(for: #require(URL(string: "https://github.com/login"))).count == 1)
+    }
 }

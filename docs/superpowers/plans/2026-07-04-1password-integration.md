@@ -156,7 +156,7 @@ OUT_DIR="$HELPER_DIR/bin"
 OUT="$OUT_DIR/evo-op-helper"
 
 if ! command -v go >/dev/null 2>&1; then
-    echo "error: Go toolchain not found. Install Go >= 1.24 from https://go.dev/dl/ (do NOT use Homebrew per project policy)." >&2
+    echo "error: Go toolchain not found. Install Go >= 1.24 (brew install go, or https://go.dev/dl/)." >&2
     exit 1
 fi
 if ! xcode-select -p >/dev/null 2>&1; then

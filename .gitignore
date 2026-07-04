@@ -101,3 +101,6 @@ codesign*
 # !build/dsa_pub.pem
 
 Vendor/CEF
+# 1Password sidecar spike (throwaway). The prebuilt tools/op-helper/bin/evo-op-helper
+# IS committed (it's the input to the Evo.app copy phase) — do not ignore bin/.
+tools/op-helper/spike/

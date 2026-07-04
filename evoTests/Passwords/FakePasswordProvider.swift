@@ -2,10 +2,17 @@
 import Foundation
 
 final class FakePasswordProvider: PasswordProvider {
+    struct SaveCall {
+        let url: URL
+        let username: String
+        let password: String
+        let target: SaveTarget
+    }
+
     var injectedCredentials: [ProviderCredential]
     var secrets: [String: String]
     var stateValue: ProviderState
-    private(set) var savedCalls: [(url: URL, username: String, password: String, target: SaveTarget)] = []
+    private(set) var savedCalls: [SaveCall] = []
     private(set) var revealCalls: [String] = []
 
     init(credentials: [ProviderCredential] = [], secrets: [String: String] = [:], state: ProviderState = .ready) {
@@ -25,7 +32,7 @@ final class FakePasswordProvider: PasswordProvider {
     }
 
     func save(url: URL, username: String, password: String, target: SaveTarget) async throws {
-        savedCalls.append((url, username, password, target))
+        savedCalls.append(SaveCall(url: url, username: username, password: password, target: target))
     }
 
     func totp(for credential: ProviderCredential) async throws -> String? {

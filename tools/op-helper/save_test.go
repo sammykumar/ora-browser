@@ -35,19 +35,36 @@ func TestApplyUpdate(t *testing.T) {
 		Fields: []onepassword.ItemField{
 			{ID: "username", Title: "username", FieldType: onepassword.ItemFieldTypeText, Value: "old"},
 			{ID: "password", Title: "password", FieldType: onepassword.ItemFieldTypeConcealed, Value: "oldpass"},
+			{ID: "onetimepassword", Title: "one-time password", FieldType: onepassword.ItemFieldTypeTOTP, Value: "otpauth://totp/x?secret=abc"},
 		},
 	}
 	updated := applyUpdate(item, "new", "newpass")
 	var user, pass string
-	for _, f := range updated.Fields {
+	var totp *onepassword.ItemField
+	for i, f := range updated.Fields {
 		if f.FieldType == onepassword.ItemFieldTypeText {
 			user = f.Value
 		}
 		if f.FieldType == onepassword.ItemFieldTypeConcealed {
 			pass = f.Value
 		}
+		if f.FieldType == onepassword.ItemFieldTypeTOTP {
+			totp = &updated.Fields[i]
+		}
 	}
 	if user != "new" || pass != "newpass" {
 		t.Fatalf("update failed: user=%q pass=%q", user, pass)
+	}
+	if len(updated.Fields) != 3 {
+		t.Fatalf("expected 3 fields (nothing dropped), got %d: %+v", len(updated.Fields), updated.Fields)
+	}
+	if totp == nil {
+		t.Fatalf("TOTP field was dropped by applyUpdate")
+	}
+	if totp.Value != "otpauth://totp/x?secret=abc" {
+		t.Fatalf("TOTP field value was mutated: got %q", totp.Value)
+	}
+	if totp.FieldType != onepassword.ItemFieldTypeTOTP {
+		t.Fatalf("TOTP field type changed: got %v", totp.FieldType)
 	}
 }

@@ -47,15 +47,15 @@ final class PasswordManagerProviderRegistry {
             vaultStoredInEvo: true,
             autofillMode: .builtInOverlay,
             isAvailable: true
+        ),
+        PasswordManagerProviderDescriptor(
+            kind: .onePassword,
+            title: "1Password",
+            summary: "Autofill from your 1Password vaults using the 1Password desktop app.",
+            vaultStoredInEvo: false,
+            autofillMode: .builtInOverlay,
+            isAvailable: true
         )
-        // PasswordManagerProviderDescriptor(
-        //     kind: .onePassword,
-        //     title: "1Password",
-        //     summary: "Reserved for a native 1Password integration with 1Password's own autofill surface.",
-        //     vaultStoredInEvo: false,
-        //     autofillMode: .nativeProviderOverlay,
-        //     isAvailable: false
-        // ),
         // PasswordManagerProviderDescriptor(
         //     kind: .bitwarden,
         //     title: "Bitwarden",
@@ -66,9 +66,21 @@ final class PasswordManagerProviderRegistry {
         // )
     ]
 
+    private lazy var evoProvider = EvoPasswordProvider()
+
+    @MainActor private lazy var onePasswordProvider = OnePasswordProvider()
+
     private init() {}
 
     func descriptor(for kind: PasswordManagerProviderKind) -> PasswordManagerProviderDescriptor {
         providers.first(where: { $0.kind == kind }) ?? providers[0]
+    }
+
+    @MainActor
+    func activeProvider(for kind: PasswordManagerProviderKind) -> PasswordProvider {
+        switch kind {
+        case .onePassword: return onePasswordProvider
+        default: return evoProvider
+        }
     }
 }

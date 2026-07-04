@@ -200,9 +200,8 @@ final class PasswordAutofillCoordinator {
         Task { [weak self] in
             guard let self else { return }
 
-            // TODO(1.12): route through `providers.activeProvider(for: settings.passwordManagerProvider)`
-            // once the registry can resolve a live provider instance from a provider kind.
-            guard let revealed = try? await EvoPasswordProvider().reveal(credential) else {
+            let provider = await self.providers.activeProvider(for: self.settings.passwordManagerProvider)
+            guard let revealed = try? await provider.reveal(credential) else {
                 return
             }
 
@@ -277,11 +276,33 @@ final class PasswordAutofillCoordinator {
         dismissOverlay()
     }
 
+    private func resolvedSuggestions(
+        for focus: PasswordBridgeFocusPayload,
+        provider: PasswordProvider,
+        providerKind: PasswordManagerProviderKind,
+        pageURL: URL,
+        containerID: UUID?
+    ) async -> PasswordAutofillOverlayState {
+        let matchingEntries = await provider.credentials(for: pageURL, containerID: containerID)
+
+        let emailSuggestions: [PasswordEmailSuggestion] = providerKind == .evo
+            ? passwordManager.emailSuggestions(for: containerID)
+            : []
+        let generatedPassword: String? = providerKind == .evo && focus.action == .createAccount
+            ? passwordManager.generateStrongPassword()
+            : nil
+
+        return Self.resolveSuggestions(
+            for: focus,
+            matchingEntries: matchingEntries,
+            emailSuggestions: emailSuggestions,
+            generatedPassword: generatedPassword
+        )
+    }
+
     private func presentOverlay(for focus: PasswordBridgeFocusPayload, pageURL: URL?) {
-        let provider = providers.descriptor(for: settings.passwordManagerProvider)
         guard settings.passwordsEnabled,
               settings.passwordAutofillEnabled,
-              provider.usesBuiltInOverlay,
               tab?.isPrivate == false,
               let pageURL,
               let normalizedHost = PasswordManagerService.normalizedHost(from: pageURL)
@@ -290,24 +311,54 @@ final class PasswordAutofillCoordinator {
             return
         }
 
-        let suggestions = Self.resolveSuggestions(
-            for: focus,
-            // TODO(1.12): source from `providers.activeProvider(for:).credentials(for:containerID:)` instead.
-            matchingEntries: passwordManager.matchingEntries(for: pageURL, containerID: tab?.container.id)
-                .map(EvoPasswordProvider.credential(from:)),
-            emailSuggestions: passwordManager.emailSuggestions(for: tab?.container.id),
-            generatedPassword: focus.action == .createAccount ? passwordManager.generateStrongPassword() : nil
-        )
+        let providerKind = settings.passwordManagerProvider
+        let containerID = tab?.container.id
 
-        guard !suggestions.savedPasswordEntries.isEmpty
-            || !suggestions.emailSuggestions.isEmpty
-            || suggestions.generatedPassword != nil
-        else {
-            clearAutofillState()
-            return
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            let provider = self.providers.activeProvider(for: providerKind)
+
+            guard provider.state != .locked else {
+                // Slice 2 adds the unlock row for a locked provider; for now, show no overlay.
+                self.clearAutofillState()
+                return
+            }
+
+            let suggestions = await self.resolvedSuggestions(
+                for: focus,
+                provider: provider,
+                providerKind: providerKind,
+                pageURL: pageURL,
+                containerID: containerID
+            )
+
+            guard !suggestions.savedPasswordEntries.isEmpty
+                || !suggestions.emailSuggestions.isEmpty
+                || suggestions.generatedPassword != nil
+            else {
+                self.clearAutofillState()
+                return
+            }
+
+            let overlayState = Self.makeOverlayState(
+                for: focus,
+                normalizedHost: normalizedHost,
+                suggestions: suggestions
+            )
+
+            self.tab?.passwordTriggerOverlayState = overlayState
+            self.tab?.passwordOverlayState = overlayState
+            self.setOverlayKeyboardActive(true)
         }
+    }
 
-        let overlayState = PasswordAutofillOverlayState(
+    private static func makeOverlayState(
+        for focus: PasswordBridgeFocusPayload,
+        normalizedHost: String,
+        suggestions: PasswordAutofillOverlayState
+    ) -> PasswordAutofillOverlayState {
+        PasswordAutofillOverlayState(
             focus: PasswordBridgeFocusPayload(
                 fieldID: focus.fieldID,
                 hostname: normalizedHost,
@@ -322,10 +373,6 @@ final class PasswordAutofillCoordinator {
             generatedPassword: suggestions.generatedPassword,
             selectedSuggestionIndex: suggestions.selectedSuggestionIndex
         )
-
-        tab?.passwordTriggerOverlayState = overlayState
-        tab?.passwordOverlayState = overlayState
-        setOverlayKeyboardActive(true)
     }
 
     private func updateOverlayRect(for fieldID: String, rect: PasswordBridgeRect) {

@@ -158,6 +158,7 @@ class SettingsStore: ObservableObject {
     private let autoPiPEnabledKey = "settings.autoPiPEnabled"
     private let passwordsEnabledKey = "settings.passwords.enabled"
     private let passwordManagerProviderKey = "settings.passwords.provider"
+    private let onePasswordAccountNameKey = "settings.passwords.onePassword.account"
     private let passwordAutofillEnabledKey = "settings.passwords.autofillEnabled"
     private let passwordAutofillSubmitEnabledKey = "settings.passwords.autofillSubmitEnabled"
     private let passwordSavePromptsEnabledKey = "settings.passwords.savePromptsEnabled"
@@ -247,6 +248,10 @@ class SettingsStore: ObservableObject {
 
     @Published var passwordManagerProvider: PasswordManagerProviderKind {
         didSet { defaults.set(passwordManagerProvider.rawValue, forKey: passwordManagerProviderKey) }
+    }
+
+    @Published var onePasswordAccountName: String {
+        didSet { defaults.set(onePasswordAccountName, forKey: onePasswordAccountNameKey) }
     }
 
     @Published var passwordAutofillEnabled: Bool {
@@ -341,6 +346,7 @@ class SettingsStore: ObservableObject {
         passwordAutofillEnabled = defaults.object(forKey: passwordAutofillEnabledKey) as? Bool ?? true
         passwordAutofillSubmitEnabled = defaults.object(forKey: passwordAutofillSubmitEnabledKey) as? Bool ?? true
         passwordSavePromptsEnabled = defaults.object(forKey: passwordSavePromptsEnabledKey) as? Bool ?? true
+        onePasswordAccountName = defaults.string(forKey: onePasswordAccountNameKey) ?? ""
         suppressedPasswordSavePromptHosts = Set(defaults
             .stringArray(forKey: suppressedPasswordSavePromptHostsKey) ?? [])
 

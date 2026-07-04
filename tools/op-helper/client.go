@@ -82,5 +82,20 @@ func (s *sdkClient) totp(ctx context.Context, vaultID, itemID string) (string, e
 	return "", nil // filled in Task 4.3
 }
 func (s *sdkClient) saveItem(ctx context.Context, p saveParams) (string, string, error) {
-	return "", "", nil // filled in Task 3.1
+	if p.ItemID == "" {
+		created, err := s.client.Items().Create(ctx, buildCreateParams(p))
+		if err != nil {
+			return "", "", err
+		}
+		return created.ID, created.VaultID, nil
+	}
+	item, err := s.client.Items().Get(ctx, p.VaultID, p.ItemID)
+	if err != nil {
+		return "", "", err
+	}
+	updated, err := s.client.Items().Put(ctx, applyUpdate(item, p.Username, p.Password))
+	if err != nil {
+		return "", "", err
+	}
+	return updated.ID, updated.VaultID, nil
 }

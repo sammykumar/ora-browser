@@ -47,3 +47,10 @@ type saveParams struct {
 	Username string
 	Password string
 }
+
+// str reads a string param out of a request's params map, defaulting to "" for
+// missing or non-string values.
+func str(m map[string]interface{}, k string) string {
+	v, _ := m[k].(string)
+	return v
+}

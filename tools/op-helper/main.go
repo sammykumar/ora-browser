@@ -44,6 +44,28 @@ func handle(ctx context.Context, c opClient, req request) response {
 			return fail(req.ID, code, msg)
 		}
 		return ok(req.ID, map[string]interface{}{"username": u, "password": p})
+	case "listVaults":
+		vaults, err := c.listVaults(ctx)
+		if err != nil {
+			code, msg := mapSDKError(err)
+			return fail(req.ID, code, msg)
+		}
+		return ok(req.ID, map[string]interface{}{"vaults": vaults})
+	case "saveItem":
+		p := saveParams{
+			VaultID:  str(req.Params, "vaultId"),
+			ItemID:   str(req.Params, "itemId"),
+			Title:    str(req.Params, "title"),
+			URL:      str(req.Params, "url"),
+			Username: str(req.Params, "username"),
+			Password: str(req.Params, "password"),
+		}
+		id, vaultID, err := c.saveItem(ctx, p)
+		if err != nil {
+			code, msg := mapSDKError(err)
+			return fail(req.ID, code, msg)
+		}
+		return ok(req.ID, map[string]interface{}{"id": id, "vaultId": vaultID})
 	default:
 		return fail(req.ID, "internal", "unknown method: "+req.Method)
 	}

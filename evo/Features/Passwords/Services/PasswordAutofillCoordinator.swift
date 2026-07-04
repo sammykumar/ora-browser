@@ -143,9 +143,9 @@ struct PasswordSavePromptDetails: Equatable {
 final class PasswordAutofillCoordinator {
     weak var tab: Tab?
 
-    private let passwordManager = PasswordManagerService.shared
-    private let providers = PasswordManagerProviderRegistry.shared
-    private let settings = SettingsStore.shared
+    let passwordManager = PasswordManagerService.shared
+    let providers = PasswordManagerProviderRegistry.shared
+    let settings = SettingsStore.shared
     private let decoder = JSONDecoder()
 
     private var dismissWorkItem: DispatchWorkItem?
@@ -396,101 +396,11 @@ final class PasswordAutofillCoordinator {
         }
     }
 
-    private func handleSubmit(_ payload: PasswordBridgeSubmitPayload, pageURL: URL?) {
-        guard settings.passwordsEnabled,
-              settings.passwordSavePromptsEnabled,
-              tab?.isPrivate == false,
-              let pageURL,
-              let normalizedHost = PasswordManagerService.normalizedHost(from: pageURL)
-        else {
-            return
-        }
-
-        guard settings.allowsPasswordSavePrompts(for: normalizedHost) else {
-            return
-        }
-
-        let trimmedUsername = payload.username.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPassword = payload.password.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard payload.action == .login || payload.action == .createAccount,
-              !trimmedPassword.isEmpty
-        else {
-            return
-        }
-
-        let matchingEntry = passwordManager
-            .matchingEntries(for: pageURL, containerID: tab?.container.id)
-            .first { $0.username == trimmedUsername }
-
-        if let matchingEntry,
-           let storedPassword = try? passwordManager.revealPassword(for: matchingEntry),
-           storedPassword == trimmedPassword
-        {
-            return
-        }
-
-        let prompt = Self.savePromptDetails(
-            for: pageURL,
-            username: trimmedUsername,
-            normalizedHost: normalizedHost,
-            isUpdate: matchingEntry != nil
-        )
-
-        let saveAction: () -> Void = { [weak self] in
-            guard let self else { return }
-            let target = Self.saveTarget(
-                forProvider: self.settings.passwordManagerProvider, accounts: self.settings.onePasswordAccounts,
-                defaultVaultID: nil, containerID: self.tab?.container.id, existingItemID: nil
-            )
-            Task { @MainActor in
-                let provider = self.providers.activeProvider(for: self.settings.passwordManagerProvider)
-                _ = try? await provider.save(
-                    url: pageURL, username: trimmedUsername, password: trimmedPassword, target: target
-                )
-            }
-        }
-
-        Task { @MainActor [weak self] in
-            self?.presentSavePrompt(
-                prompt,
-                normalizedHost: normalizedHost,
-                saveAction: saveAction
-            )
-        }
-    }
+    // handleSubmit / presentSaveFlow / presentSavePrompt live in
+    // PasswordAutofillCoordinator+Save.swift (save-prompt routing + account/vault picker).
 
     @MainActor
-    private func presentSavePrompt(
-        _ prompt: PasswordSavePromptDetails,
-        normalizedHost: String,
-        saveAction: @escaping () -> Void
-    ) {
-        guard let window = presentationWindow() else {
-            return
-        }
-
-        let alert = NSAlert()
-        alert.alertStyle = prompt.showsSecurityWarning ? .warning : .informational
-        alert.messageText = prompt.title
-        alert.informativeText = prompt.message
-        alert.addButton(withTitle: prompt.confirmButtonTitle)
-        alert.addButton(withTitle: "Not Now")
-        alert.addButton(withTitle: prompt.neverButtonTitle)
-        alert.beginSheetModal(for: window) { response in
-            switch response {
-            case .alertFirstButtonReturn:
-                saveAction()
-            case .alertThirdButtonReturn:
-                self.settings.suppressPasswordSavePrompts(for: normalizedHost)
-            default:
-                break
-            }
-        }
-    }
-
-    @MainActor
-    private func presentationWindow() -> NSWindow? {
+    func presentationWindow() -> NSWindow? {
         if let window = tab?.pageWindow {
             return window
         }
@@ -713,24 +623,6 @@ final class PasswordAutofillCoordinator {
 // MARK: - Locked / syncing provider overlays / save routing
 
 extension PasswordAutofillCoordinator {
-    /// Builds the provider-appropriate save destination; Task 3.4's account/vault picker refines this.
-    static func saveTarget(
-        forProvider kind: PasswordManagerProviderKind,
-        accounts: [String],
-        defaultVaultID: String?,
-        containerID: UUID?,
-        existingItemID: String?
-    ) -> SaveTarget {
-        switch kind {
-        case .onePassword:
-            return .onePassword(
-                accountName: accounts.first ?? "", vaultID: defaultVaultID ?? "", existingItemID: existingItemID
-            )
-        default:
-            return .evoContainer(containerID)
-        }
-    }
-
     private static func makeOverlayState(
         for focus: PasswordBridgeFocusPayload,
         normalizedHost: String,

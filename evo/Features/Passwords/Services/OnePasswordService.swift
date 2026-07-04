@@ -155,9 +155,32 @@ final class OnePasswordService: ObservableObject {
         )
     }
 
-    /// Stub — real save flow lands in a later slice.
     func save(url: URL, username: String, password: String, target: SaveTarget) async throws {
-        throw OpHelperError.notRunning
+        guard case let .onePassword(accountName, vaultID, existingItemID) = target,
+              let process = processes[accountName]
+        else {
+            throw OpHelperError.notRunning
+        }
+        var params: [String: Any] = [
+            "vaultId": vaultID,
+            "title": url.host ?? url.absoluteString,
+            "url": url.absoluteString,
+            "username": username,
+            "password": password
+        ]
+        if let existingItemID { params["itemId"] = existingItemID }
+        _ = try await process.request(method: "saveItem", params: params)
+        await refresh()
+    }
+
+    func listVaults(accountName: String) async throws -> [(id: String, title: String)] {
+        guard let process = processes[accountName] else { throw OpHelperError.notRunning }
+        let result = try await process.request(method: "listVaults", params: [:])
+        let vaults = result["vaults"] as? [[String: Any]] ?? []
+        return vaults.compactMap { dict in
+            guard let id = dict["id"] as? String, let title = dict["title"] as? String else { return nil }
+            return (id: id, title: title)
+        }
     }
 
     /// Stub — real TOTP retrieval lands in a later slice.

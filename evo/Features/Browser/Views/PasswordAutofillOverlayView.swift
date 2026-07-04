@@ -33,7 +33,18 @@ struct PasswordAutofillOverlayView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if overlay.suggestions.isEmpty {
+            if overlay.isSyncing {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Syncing…")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+            } else if overlay.suggestions.isEmpty {
                 Text("No autofill suggestions available.")
                     .font(.caption)
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
@@ -118,6 +129,10 @@ struct PasswordAutofillOverlayView: View {
                     .font(.caption)
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             }
+        case let .unlockProvider(label):
+            Text("Unlock \(label)…")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color(nsColor: .labelColor))
         }
     }
 
@@ -129,6 +144,8 @@ struct PasswordAutofillOverlayView: View {
             tab.passwordCoordinator?.autofill(entry, for: overlay)
         case let .email(emailSuggestion):
             tab.passwordCoordinator?.fillEmailSuggestion(emailSuggestion, for: overlay)
+        case .unlockProvider:
+            tab.passwordCoordinator?.unlockActiveProvider()
         }
     }
 }
@@ -148,6 +165,8 @@ private extension PasswordAutofillSuggestion {
             return "touchid"
         case .email:
             return "at"
+        case .unlockProvider:
+            return "lock.open"
         }
     }
 }
@@ -220,7 +239,14 @@ private struct PasswordSuggestionButton<Content: View>: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                SiteFaviconView(host: host, size: 18)
+                if host.isEmpty {
+                    Image(systemName: "lock")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: 18, height: 18)
+                } else {
+                    SiteFaviconView(host: host, size: 18)
+                }
                 content()
                 Spacer(minLength: 0)
                 Image(systemName: accessorySymbolName)

@@ -76,6 +76,7 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
     case generatedPassword(host: String, password: String)
     case savedCredential(ProviderCredential)
     case email(PasswordEmailSuggestion)
+    case unlockProvider(label: String)
 
     var id: String {
         switch self {
@@ -85,6 +86,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return "saved-\(credential.id)"
         case let .email(suggestion):
             return "email-\(suggestion.id)"
+        case let .unlockProvider(label):
+            return "unlock-\(label)"
         }
     }
 
@@ -96,6 +99,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return credential.host
         case let .email(suggestion):
             return suggestion.host
+        case .unlockProvider:
+            return ""
         }
     }
 }
@@ -106,8 +111,14 @@ struct PasswordAutofillOverlayState: Equatable {
     let emailSuggestions: [PasswordEmailSuggestion]
     let generatedPassword: String?
     let selectedSuggestionIndex: Int
+    var lockedProviderLabel: String?
+    var isSyncing: Bool = false
 
     var suggestions: [PasswordAutofillSuggestion] {
+        if let lockedProviderLabel {
+            return [.unlockProvider(label: lockedProviderLabel)]
+        }
+
         var items: [PasswordAutofillSuggestion] = []
 
         if let generatedPassword {
@@ -325,10 +336,20 @@ final class PasswordAutofillCoordinator {
 
             let provider = self.providers.activeProvider(for: providerKind)
 
-            guard provider.state != .locked else {
-                // Slice 2 adds the unlock row for a locked provider; for now, show no overlay.
-                self.clearAutofillState()
+            switch provider.state {
+            case .locked:
+                let providerLabel = self.providers.descriptor(for: providerKind).title
+                self.presentPlaceholderOverlay(
+                    for: focus,
+                    normalizedHost: normalizedHost,
+                    lockedProviderLabel: providerLabel
+                )
                 return
+            case .syncing:
+                self.presentPlaceholderOverlay(for: focus, normalizedHost: normalizedHost, isSyncing: true)
+                return
+            case .ready, .unavailable:
+                break
             }
 
             let suggestions = await self.resolvedSuggestions(
@@ -359,28 +380,6 @@ final class PasswordAutofillCoordinator {
             self.tab?.passwordOverlayState = overlayState
             self.setOverlayKeyboardActive(true)
         }
-    }
-
-    private static func makeOverlayState(
-        for focus: PasswordBridgeFocusPayload,
-        normalizedHost: String,
-        suggestions: PasswordAutofillOverlayState
-    ) -> PasswordAutofillOverlayState {
-        PasswordAutofillOverlayState(
-            focus: PasswordBridgeFocusPayload(
-                fieldID: focus.fieldID,
-                hostname: normalizedHost,
-                action: focus.action,
-                fieldKind: focus.fieldKind,
-                usernameFieldID: focus.usernameFieldID,
-                passwordFieldIDs: focus.passwordFieldIDs,
-                rect: focus.rect
-            ),
-            savedPasswordEntries: suggestions.savedPasswordEntries,
-            emailSuggestions: suggestions.emailSuggestions,
-            generatedPassword: suggestions.generatedPassword,
-            selectedSuggestionIndex: suggestions.selectedSuggestionIndex
-        )
     }
 
     private func updateOverlayRect(for fieldID: String, rect: PasswordBridgeRect) {
@@ -528,7 +527,9 @@ final class PasswordAutofillCoordinator {
             savedPasswordEntries: overlay.savedPasswordEntries,
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
-            selectedSuggestionIndex: overlay.selectedSuggestionIndex
+            selectedSuggestionIndex: overlay.selectedSuggestionIndex,
+            lockedProviderLabel: overlay.lockedProviderLabel,
+            isSyncing: overlay.isSyncing
         )
     }
 
@@ -541,7 +542,9 @@ final class PasswordAutofillCoordinator {
             savedPasswordEntries: overlay.savedPasswordEntries,
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
-            selectedSuggestionIndex: selectionIndex
+            selectedSuggestionIndex: selectionIndex,
+            lockedProviderLabel: overlay.lockedProviderLabel,
+            isSyncing: overlay.isSyncing
         )
     }
 
@@ -601,6 +604,10 @@ final class PasswordAutofillCoordinator {
             autofill(entry, for: overlay)
         case let .email(suggestion):
             fillEmailSuggestion(suggestion, for: overlay)
+        case .unlockProvider:
+            Task { @MainActor [weak self] in
+                self?.unlockActiveProvider()
+            }
         }
     }
 
@@ -697,5 +704,76 @@ final class PasswordAutofillCoordinator {
             selectedSuggestionIndex: (savedPasswordEntries.isEmpty && filteredEmailSuggestions
                 .isEmpty && filteredGeneratedPassword == nil) ? -1 : 0
         )
+    }
+}
+
+// MARK: - Locked / syncing provider overlays
+
+extension PasswordAutofillCoordinator {
+    private static func makeOverlayState(
+        for focus: PasswordBridgeFocusPayload,
+        normalizedHost: String,
+        suggestions: PasswordAutofillOverlayState,
+        lockedProviderLabel: String? = nil,
+        isSyncing: Bool = false
+    ) -> PasswordAutofillOverlayState {
+        PasswordAutofillOverlayState(
+            focus: PasswordBridgeFocusPayload(
+                fieldID: focus.fieldID,
+                hostname: normalizedHost,
+                action: focus.action,
+                fieldKind: focus.fieldKind,
+                usernameFieldID: focus.usernameFieldID,
+                passwordFieldIDs: focus.passwordFieldIDs,
+                rect: focus.rect
+            ),
+            savedPasswordEntries: suggestions.savedPasswordEntries,
+            emailSuggestions: suggestions.emailSuggestions,
+            generatedPassword: suggestions.generatedPassword,
+            selectedSuggestionIndex: suggestions.selectedSuggestionIndex,
+            lockedProviderLabel: lockedProviderLabel,
+            isSyncing: isSyncing
+        )
+    }
+
+    /// Shows a single non-interactive/interactive placeholder row (unlock prompt or syncing spinner)
+    /// in place of the normal suggestion list, e.g. while the active provider is locked or syncing.
+    @MainActor
+    private func presentPlaceholderOverlay(
+        for focus: PasswordBridgeFocusPayload,
+        normalizedHost: String,
+        lockedProviderLabel: String? = nil,
+        isSyncing: Bool = false
+    ) {
+        let placeholder = PasswordAutofillOverlayState(
+            focus: focus,
+            savedPasswordEntries: [],
+            emailSuggestions: [],
+            generatedPassword: nil,
+            selectedSuggestionIndex: lockedProviderLabel != nil ? 0 : -1
+        )
+        let overlayState = Self.makeOverlayState(
+            for: focus,
+            normalizedHost: normalizedHost,
+            suggestions: placeholder,
+            lockedProviderLabel: lockedProviderLabel,
+            isSyncing: isSyncing
+        )
+
+        tab?.passwordTriggerOverlayState = overlayState
+        tab?.passwordOverlayState = overlayState
+        setOverlayKeyboardActive(true)
+    }
+
+    @MainActor
+    func unlockActiveProvider() {
+        let provider = providers.activeProvider(for: settings.passwordManagerProvider)
+        Task { @MainActor in
+            if provider is OnePasswordProvider {
+                await OnePasswordService.shared.refresh() // triggers the app auth prompt
+            }
+            // Re-present the overlay for the current field once unlocked.
+        }
+        dismissOverlay()
     }
 }

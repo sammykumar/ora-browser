@@ -133,6 +133,15 @@ struct PasswordAutofillOverlayView: View {
             Text("Unlock \(label)…")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color(nsColor: .labelColor))
+        case let .fillOneTimeCode(credential):
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Fill one-time code")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color(nsColor: .labelColor))
+                Text(credential.displayUsername)
+                    .font(.caption)
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+            }
         }
     }
 
@@ -144,6 +153,8 @@ struct PasswordAutofillOverlayView: View {
             tab.passwordCoordinator?.autofill(entry, for: overlay)
         case let .email(emailSuggestion):
             tab.passwordCoordinator?.fillEmailSuggestion(emailSuggestion, for: overlay)
+        case let .fillOneTimeCode(credential):
+            tab.passwordCoordinator?.fillOneTimeCode(credential, for: overlay)
         case .unlockProvider:
             tab.passwordCoordinator?.unlockActiveProvider()
         }
@@ -167,6 +178,8 @@ private extension PasswordAutofillSuggestion {
             return "at"
         case .unlockProvider:
             return "lock.open"
+        case .fillOneTimeCode:
+            return "clock.arrow.circlepath"
         }
     }
 }

@@ -78,6 +78,7 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
     case savedCredential(ProviderCredential)
     case email(PasswordEmailSuggestion)
     case unlockProvider(label: String)
+    case fillOneTimeCode(ProviderCredential)
 
     var id: String {
         switch self {
@@ -89,6 +90,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return "email-\(suggestion.id)"
         case let .unlockProvider(label):
             return "unlock-\(label)"
+        case let .fillOneTimeCode(credential):
+            return "totp-\(credential.id)"
         }
     }
 
@@ -102,6 +105,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return suggestion.host
         case .unlockProvider:
             return ""
+        case let .fillOneTimeCode(credential):
+            return credential.host
         }
     }
 }
@@ -111,13 +116,38 @@ struct PasswordAutofillOverlayState: Equatable {
     let savedPasswordEntries: [ProviderCredential]
     let emailSuggestions: [PasswordEmailSuggestion]
     let generatedPassword: String?
+    let oneTimeCodeCredential: ProviderCredential?
     let selectedSuggestionIndex: Int
     var lockedProviderLabel: String?
     var isSyncing: Bool = false
 
+    init(
+        focus: PasswordBridgeFocusPayload,
+        savedPasswordEntries: [ProviderCredential],
+        emailSuggestions: [PasswordEmailSuggestion],
+        generatedPassword: String?,
+        oneTimeCodeCredential: ProviderCredential? = nil,
+        selectedSuggestionIndex: Int,
+        lockedProviderLabel: String? = nil,
+        isSyncing: Bool = false
+    ) {
+        self.focus = focus
+        self.savedPasswordEntries = savedPasswordEntries
+        self.emailSuggestions = emailSuggestions
+        self.generatedPassword = generatedPassword
+        self.oneTimeCodeCredential = oneTimeCodeCredential
+        self.selectedSuggestionIndex = selectedSuggestionIndex
+        self.lockedProviderLabel = lockedProviderLabel
+        self.isSyncing = isSyncing
+    }
+
     var suggestions: [PasswordAutofillSuggestion] {
         if let lockedProviderLabel {
             return [.unlockProvider(label: lockedProviderLabel)]
+        }
+
+        if let oneTimeCodeCredential {
+            return [.fillOneTimeCode(oneTimeCodeCredential)]
         }
 
         var items: [PasswordAutofillSuggestion] = []
@@ -258,6 +288,28 @@ final class PasswordAutofillCoordinator {
         dismissOverlay()
     }
 
+    func fillOneTimeCode(_ credential: ProviderCredential, for overlay: PasswordAutofillOverlayState) {
+        Task { [weak self] in
+            guard let self else { return }
+
+            let provider = await self.providers.activeProvider(for: self.settings.passwordManagerProvider)
+            guard let code = try? await provider.totp(for: credential) else { return }
+
+            await MainActor.run {
+                let request = PasswordFillRequest(
+                    usernameFieldID: overlay.focus.fieldID, // the OTP field is the focused field
+                    passwordFieldIDs: [],
+                    username: code,
+                    password: "",
+                    highlightColor: "#E8F1FF",
+                    submitAfterFill: false
+                )
+                self.evaluate(scriptMethod: "fillCredentials", payload: request)
+                self.dismissOverlay()
+            }
+        }
+    }
+
     func fillEmailSuggestion(_ suggestion: PasswordEmailSuggestion, for overlay: PasswordAutofillOverlayState) {
         guard overlay.focus.fieldKind == .email else {
             return
@@ -366,6 +418,7 @@ final class PasswordAutofillCoordinator {
             guard !suggestions.savedPasswordEntries.isEmpty
                 || !suggestions.emailSuggestions.isEmpty
                 || suggestions.generatedPassword != nil
+                || suggestions.oneTimeCodeCredential != nil
             else {
                 self.clearAutofillState()
                 return
@@ -441,6 +494,7 @@ final class PasswordAutofillCoordinator {
             savedPasswordEntries: overlay.savedPasswordEntries,
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
+            oneTimeCodeCredential: overlay.oneTimeCodeCredential,
             selectedSuggestionIndex: overlay.selectedSuggestionIndex,
             lockedProviderLabel: overlay.lockedProviderLabel,
             isSyncing: overlay.isSyncing
@@ -456,6 +510,7 @@ final class PasswordAutofillCoordinator {
             savedPasswordEntries: overlay.savedPasswordEntries,
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
+            oneTimeCodeCredential: overlay.oneTimeCodeCredential,
             selectedSuggestionIndex: selectionIndex,
             lockedProviderLabel: overlay.lockedProviderLabel,
             isSyncing: overlay.isSyncing
@@ -518,6 +573,8 @@ final class PasswordAutofillCoordinator {
             autofill(entry, for: overlay)
         case let .email(suggestion):
             fillEmailSuggestion(suggestion, for: overlay)
+        case let .fillOneTimeCode(credential):
+            fillOneTimeCode(credential, for: overlay)
         case .unlockProvider:
             Task { @MainActor [weak self] in
                 self?.unlockActiveProvider()
@@ -590,35 +647,42 @@ final class PasswordAutofillCoordinator {
         let savedPasswordEntries: [ProviderCredential]
         let filteredEmailSuggestions: [PasswordEmailSuggestion]
         let filteredGeneratedPassword: String?
+        let oneTimeCodeCredential: ProviderCredential?
 
         switch (focus.action, focus.fieldKind) {
         case (.createAccount, .password):
             savedPasswordEntries = []
             filteredEmailSuggestions = []
             filteredGeneratedPassword = generatedPassword
+            oneTimeCodeCredential = nil
         case (.createAccount, .email):
             savedPasswordEntries = []
             filteredEmailSuggestions = emailSuggestions
             filteredGeneratedPassword = nil
+            oneTimeCodeCredential = nil
         case (.createAccount, .username):
             savedPasswordEntries = []
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
+            oneTimeCodeCredential = nil
         case (.createAccount, .oneTimeCode):
             savedPasswordEntries = []
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
+            oneTimeCodeCredential = nil
         case (.login, .oneTimeCode):
             // Only credentials with a saved TOTP secret are relevant to an OTP field.
-            // Task 4.4 turns this filtered set into a single "Fill one-time code" suggestion
-            // and performs the actual fetch/fill; for now we just narrow the candidate set.
-            savedPasswordEntries = matchingEntries.filter(\.hasTotp)
+            // Surface the first match as a single "Fill one-time code" suggestion rather than
+            // an ordinary saved-credential row.
+            savedPasswordEntries = []
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
+            oneTimeCodeCredential = matchingEntries.filter(\.hasTotp).first
         case (.login, _):
             savedPasswordEntries = matchingEntries
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
+            oneTimeCodeCredential = nil
         }
 
         return PasswordAutofillOverlayState(
@@ -626,8 +690,9 @@ final class PasswordAutofillCoordinator {
             savedPasswordEntries: savedPasswordEntries,
             emailSuggestions: filteredEmailSuggestions,
             generatedPassword: filteredGeneratedPassword,
+            oneTimeCodeCredential: oneTimeCodeCredential,
             selectedSuggestionIndex: (savedPasswordEntries.isEmpty && filteredEmailSuggestions
-                .isEmpty && filteredGeneratedPassword == nil) ? -1 : 0
+                .isEmpty && filteredGeneratedPassword == nil && oneTimeCodeCredential == nil) ? -1 : 0
         )
     }
 }
@@ -655,6 +720,7 @@ extension PasswordAutofillCoordinator {
             savedPasswordEntries: suggestions.savedPasswordEntries,
             emailSuggestions: suggestions.emailSuggestions,
             generatedPassword: suggestions.generatedPassword,
+            oneTimeCodeCredential: suggestions.oneTimeCodeCredential,
             selectedSuggestionIndex: suggestions.selectedSuggestionIndex,
             lockedProviderLabel: lockedProviderLabel,
             isSyncing: isSyncing

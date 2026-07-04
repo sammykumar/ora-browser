@@ -138,6 +138,7 @@ final class PasswordAutofillCoordinator {
     private let decoder = JSONDecoder()
 
     private var dismissWorkItem: DispatchWorkItem?
+    private var overlayGeneration = 0
 
     init(tab: Tab) {
         self.tab = tab
@@ -178,12 +179,14 @@ final class PasswordAutofillCoordinator {
 
     func dismissOverlay() {
         dismissWorkItem?.cancel()
+        overlayGeneration += 1
         tab?.passwordOverlayState = nil
         setOverlayKeyboardActive(false)
     }
 
     func clearAutofillState() {
         dismissWorkItem?.cancel()
+        overlayGeneration += 1
         tab?.passwordOverlayState = nil
         tab?.passwordTriggerOverlayState = nil
         setOverlayKeyboardActive(false)
@@ -314,6 +317,9 @@ final class PasswordAutofillCoordinator {
         let providerKind = settings.passwordManagerProvider
         let containerID = tab?.container.id
 
+        overlayGeneration += 1
+        let generation = overlayGeneration
+
         Task { @MainActor [weak self] in
             guard let self else { return }
 
@@ -332,6 +338,8 @@ final class PasswordAutofillCoordinator {
                 pageURL: pageURL,
                 containerID: containerID
             )
+
+            guard generation == self.overlayGeneration else { return }
 
             guard !suggestions.savedPasswordEntries.isEmpty
                 || !suggestions.emailSuggestions.isEmpty

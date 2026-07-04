@@ -47,13 +47,14 @@ final class OnePasswordService: ObservableObject {
     func configureAccounts(_ names: [String]) {
         let unique = names.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         accounts = unique
-        // Tear down processes for removed accounts.
-        for name in processes.keys where !unique.contains(name) {
-            processes[name]?.shutdownSync()
-            processes[name] = nil
+        // Unconditionally tear down and recreate every sidecar so a Reconnect
+        // always yields live processes, even if a prior sidecar exited (e.g.
+        // the Go watchdog's os.Exit(1) on timeout) and was left stale here.
+        for process in processes.values {
+            process.shutdownSync()
         }
-        // Lazily create processes for new accounts.
-        for name in unique where processes[name] == nil {
+        processes.removeAll()
+        for name in unique {
             processes[name] = OpHelperProcess(transport: transportFactory(name))
         }
         state = unique.isEmpty ? .unavailable(reason: "No account configured") : .syncing
@@ -89,6 +90,7 @@ final class OnePasswordService: ObservableObject {
         } else if !metadata.isEmpty {
             state = .ready
         } else if let lastErrorState {
+            // Empty cache AND at least one account errored — don't report "Connected".
             state = lastErrorState
         } else {
             state = .ready
@@ -117,8 +119,10 @@ final class OnePasswordService: ObservableObject {
         !NSRunningApplication.runningApplications(withBundleIdentifier: "com.1password.1password").isEmpty
     }
 
-    /// Lazily configures all accounts from settings and populates the cache, exactly once per
-    /// service lifetime. Concurrent callers await the same in-flight configuration.
+    /// Lazily configures all accounts from settings and populates the cache. Concurrent callers
+    /// await the same in-flight configuration. If the attempt doesn't reach a usable state
+    /// (`.ready`/`.locked` — e.g. 1Password wasn't running yet), the guard is cleared so a later
+    /// call (e.g. on next credential request) can retry.
     func ensureConfigured() async {
         if let configureTask {
             await configureTask.value
@@ -132,6 +136,12 @@ final class OnePasswordService: ObservableObject {
         }
         configureTask = task
         await task.value
+        switch state {
+        case .ready, .locked:
+            break
+        default:
+            configureTask = nil // allow a retry on the next credential request
+        }
     }
 
     func credentials(for url: URL) -> [ProviderCredential] {
@@ -183,9 +193,14 @@ final class OnePasswordService: ObservableObject {
         }
     }
 
-    /// Stub — real TOTP retrieval lands in a later slice.
     func totp(for credential: ProviderCredential) async throws -> String? {
-        nil
+        guard case let .onePassword(accountName, vaultID, itemID) = credential.ref,
+              let process = processes[accountName]
+        else {
+            throw OpHelperError.notRunning
+        }
+        let result = try await process.request(method: "totp", params: ["vaultId": vaultID, "itemId": itemID])
+        return result["code"] as? String
     }
 
     func shutdownAll() {

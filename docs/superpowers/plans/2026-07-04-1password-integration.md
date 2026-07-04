@@ -2050,11 +2050,11 @@ git commit -m "feat(passwords): reap op-helper sidecars on app quit"
 
 ### Tests
 
-- [ ] **UAT-1 — First-focus authorization + overlay.** In the fresh session, open a site you have a 1Password login for (e.g. `github.com/login`). Click into the username or password field. **Expected:** a **1Password authorization prompt for "Evo"** appears → approve with **Touch ID**; after a few-seconds vault sync, the autofill **overlay appears** under the field listing your matching 1Password login(s). _(First focus is the slow one — auth + sync. If the overlay doesn't show because focus was lost, click back into the field; see UAT-4.)_
-  - Notes:
+- [x] **UAT-1 — First-focus authorization + overlay.** In the fresh session, open a site you have a 1Password login for (e.g. `github.com/login`). Click into the username or password field. **Expected:** a **1Password authorization prompt for "Evo"** appears → approve with **Touch ID**; after a few-seconds vault sync, the autofill **overlay appears** under the field listing your matching 1Password login(s). _(First focus is the slow one — auth + sync. If the overlay doesn't show because focus was lost, click back into the field; see UAT-4.)_
+  - Notes: PASS on github.com. Trace confirmed: spawn → Touch ID → `listItems` returned 558 items → overlay with 1 host-matched credential. First-focus latency ~13s (auth + sync), instant after.
 
-- [ ] **UAT-2 — Fill from the overlay.** Click the suggested 1Password credential. **Expected:** username + password fill (brief green highlight). If it's a login form and auto-submit is on (default), the form submits.
-  - Notes:
+- [x] **UAT-2 — Fill from the overlay.** Click the suggested 1Password credential. **Expected:** username + password fill (brief green highlight). If it's a login form and auto-submit is on (default), the form submits.
+  - Notes: PASS — username + password filled, reached the GitHub 2FA page.
 
 - [ ] **UAT-3 — Account badge.** Look at the suggestion row from UAT-1/2. **Expected:** it shows a small **account badge** (e.g. `my`, derived from `my.1password.com`) next to the username.
   - Notes:
@@ -2084,6 +2084,16 @@ git commit -m "feat(passwords): reap op-helper sidecars on app quit"
   - Notes:
 
 **When done:** tell me which passed / failed with your notes. All green → Slice 1 (Fill) is accepted and I move to Slice 2 (multi-account + the real settings panel so you're off `defaults write`). Any failure → I debug with sidecar/console logs before proceeding.
+
+### UAT session results (2026-07-04)
+
+Core fill is **validated** — UAT-1 and UAT-2 passed on github.com (spawn → Touch ID → 558-item sync → host-matched overlay → username+password fill → reached 2FA).
+
+Findings from the session:
+- **FIXED — `listItems` 50-item batch limit** (commit `066080c`): `Items().GetAll` caps at 50 IDs; the plan's Task 1.2 code passed all of a vault's login IDs at once, so any vault with >50 logins failed the whole refresh (empty cache, no overlay). Now chunked to ≤50. Unit tests couldn't catch a runtime SDK limit — UAT did.
+- **Config gap — no account UI in Slice 1.** `defaults write` does not reliably reach the app's `UserDefaults` in this environment (a cfprefsd cache-vs-disk split; the app's *own* writes persist fine, only external CLI writes are shadowed). The account was force-set via a temporary DEBUG hook for testing, since Slice 1 has no UI to set it. **Slice 2's settings panel is the real fix** — once the account is set through the app UI, the lazy `ensureConfigured` picks it up. The DEBUG hook + all diagnostic tracing were reverted after UAT.
+- **Known limitation — username/email-only pages** (e.g. Google's email-first sign-in step): the autofill bridge only fires on forms containing a password field, so no overlay appears on password-less pages. Inherited from the upstream bridge; affects both Evo and 1Password providers. Candidate enhancement (related to Slice 4's OTP-field relaxation).
+- **TOTP** (GitHub 2FA code page) is **Slice 4** — not yet built; the OTP-only page also hits the password-less-page limitation above (Task 4.1 relaxes it).
 
 ---
 

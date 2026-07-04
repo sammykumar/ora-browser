@@ -66,17 +66,6 @@ func gatherItems(ctx context.Context, c opClient) ([]itemDTO, error) {
 	return out, nil
 }
 
-// mapSDKError is a temporary placeholder (Task 1.1 scope) until Task 1.3 adds the real
-// classification logic in errors.go. It exists only so this package compiles and the
-// status/listItems/reveal error paths have something to call; it does no message
-// classification of its own.
-func mapSDKError(err error) (code, message string) {
-	if err == nil {
-		return "", ""
-	}
-	return "internal", err.Error()
-}
-
 func main() {
 	account := flag.String("account", "", "1Password account name or UUID")
 	name := flag.String("integration-name", "Evo", "integration name")

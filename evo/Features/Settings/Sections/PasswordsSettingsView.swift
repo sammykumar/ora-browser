@@ -147,7 +147,7 @@ struct PasswordsSettingsView: View {
                 }
 
                 if !selectedProvider.usesBuiltInVault {
-                    emptyState(message: "\(selectedProvider.title) integration coming soon.")
+                    OnePasswordConnectionPanel()
                 } else if containers.isEmpty {
                     emptyState(message: "Create a space to start storing passwords.")
                 } else if isUnlocked {

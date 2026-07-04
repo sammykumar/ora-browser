@@ -15,6 +15,8 @@ struct EvoPasswordProviderTests {
         #expect(cred.host == "example.com")
         #expect(cred.username == "sam")
         #expect(cred.accountLabel == nil)
+        #expect(cred.title == "example.com")
+        #expect(cred.hasTotp == false)
         guard case let .evo(persistentReference) = cred.ref else {
             Issue.record("expected evo ref")
             return

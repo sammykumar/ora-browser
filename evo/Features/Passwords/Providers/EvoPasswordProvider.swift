@@ -31,16 +31,13 @@ final class EvoPasswordProvider: PasswordProvider {
         guard authenticated else {
             throw PasswordManagerError.invalidStoredPassword
         }
-        let summary = SavedPasswordSummary(
-            metadata: SavedPasswordMetadata(
-                id: credential.id, origin: nil, host: credential.host, username: credential.username,
-                createdAt: .distantPast, updatedAt: .distantPast, lastUsedAt: nil, containerID: nil
-            ),
-            persistentReference: persistentReference
-        )
+        guard let summary = manager.entries(for: nil).first(where: { $0.persistentReference == persistentReference })
+        else {
+            throw PasswordManagerError.invalidStoredPassword
+        }
         let password = try manager.revealPassword(for: summary)
         manager.markUsed(summary)
-        return RevealedCredential(username: credential.username, password: password)
+        return RevealedCredential(username: summary.username, password: password)
     }
 
     func save(url: URL, username: String, password: String, target: SaveTarget) async throws {

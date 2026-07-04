@@ -44,6 +44,13 @@ func handle(ctx context.Context, c opClient, req request) response {
 			return fail(req.ID, code, msg)
 		}
 		return ok(req.ID, map[string]interface{}{"username": u, "password": p})
+	case "totp":
+		code, err := c.totp(ctx, str(req.Params, "vaultId"), str(req.Params, "itemId"))
+		if err != nil {
+			mcode, msg := mapSDKError(err)
+			return fail(req.ID, mcode, msg)
+		}
+		return ok(req.ID, map[string]interface{}{"code": code})
 	case "listVaults":
 		vaults, err := c.listVaults(ctx)
 		if err != nil {

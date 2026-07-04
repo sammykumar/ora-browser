@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/1password/onepassword-sdk-go"
 )
@@ -79,7 +80,15 @@ func (s *sdkClient) revealItem(ctx context.Context, vaultID, itemID string) (str
 	return u, p, nil
 }
 func (s *sdkClient) totp(ctx context.Context, vaultID, itemID string) (string, error) {
-	return "", nil // filled in Task 4.3
+	item, err := s.client.Items().Get(ctx, vaultID, itemID)
+	if err != nil {
+		return "", err
+	}
+	code, ok := extractTOTP(item)
+	if !ok {
+		return "", fmt.Errorf("notFound: item has no one-time password")
+	}
+	return code, nil
 }
 func (s *sdkClient) saveItem(ctx context.Context, p saveParams) (string, string, error) {
 	if p.ItemID == "" {

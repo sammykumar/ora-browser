@@ -43,6 +43,20 @@ func itemToMetadata(vaultID string, ov onepassword.ItemOverview, full onepasswor
 	return dto
 }
 
+// extractTOTP returns the current one-time password code from a fully-fetched item,
+// if it has a TOTP field with an SDK-computed code.
+func extractTOTP(item onepassword.Item) (string, bool) {
+	for _, f := range item.Fields {
+		if f.FieldType == onepassword.ItemFieldTypeTOTP {
+			details := f.Details.OTP()
+			if details != nil && details.Code != nil {
+				return *details.Code, true
+			}
+		}
+	}
+	return "", false
+}
+
 // extractLogin returns the username and password from a fully-fetched item.
 func extractLogin(item onepassword.Item) (username, password string) {
 	for _, f := range item.Fields {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/1password/onepassword-sdk-go"
@@ -38,11 +40,16 @@ func TestExtractLoginNeverLeaksIntoMetadata(t *testing.T) {
 	if password != "s3cret" {
 		t.Fatalf("extractLogin password = %q", password)
 	}
-	// Metadata must NOT carry the password:
+	// Metadata must NOT carry the password anywhere — serialize the whole DTO
+	// (what actually crosses the wire to Evo) and assert the secret is absent.
 	ov := onepassword.ItemOverview{ID: "i1", VaultID: "v1", Title: "GitHub"}
 	dto := itemToMetadata("v1", ov, loginItem())
-	if got, _ := any(dto).(itemDTO); got.Username == "s3cret" {
-		t.Fatal("password leaked into metadata")
+	blob, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("marshal metadata: %v", err)
+	}
+	if strings.Contains(string(blob), "s3cret") {
+		t.Fatalf("password leaked into serialized metadata: %s", blob)
 	}
 }
 

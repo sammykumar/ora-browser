@@ -135,6 +135,7 @@ struct EvoTests {
             ),
             persistentReference: Data()
         )
+        let credential = EvoPasswordProvider.credential(from: entry)
         let emailSuggestion = PasswordEmailSuggestion(
             email: "person@example.com",
             host: "another.com",
@@ -153,7 +154,7 @@ struct EvoTests {
         )
         let passwordSuggestions = PasswordAutofillCoordinator.resolveSuggestions(
             for: passwordFocus,
-            matchingEntries: [entry],
+            matchingEntries: [credential],
             emailSuggestions: [emailSuggestion],
             generatedPassword: "StrongPass123!"
         )
@@ -173,7 +174,7 @@ struct EvoTests {
         )
         let emailSuggestions = PasswordAutofillCoordinator.resolveSuggestions(
             for: emailFocus,
-            matchingEntries: [entry],
+            matchingEntries: [credential],
             emailSuggestions: [emailSuggestion],
             generatedPassword: "StrongPass123!"
         )

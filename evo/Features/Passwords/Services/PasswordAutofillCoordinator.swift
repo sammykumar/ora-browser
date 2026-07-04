@@ -74,15 +74,15 @@ struct PasswordFillRequest: Codable {
 
 enum PasswordAutofillSuggestion: Identifiable, Equatable {
     case generatedPassword(host: String, password: String)
-    case savedCredential(SavedPasswordSummary)
+    case savedCredential(ProviderCredential)
     case email(PasswordEmailSuggestion)
 
     var id: String {
         switch self {
         case let .generatedPassword(_, password):
             return "generated-\(password)"
-        case let .savedCredential(entry):
-            return "saved-\(entry.id)"
+        case let .savedCredential(credential):
+            return "saved-\(credential.id)"
         case let .email(suggestion):
             return "email-\(suggestion.id)"
         }
@@ -92,8 +92,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
         switch self {
         case let .generatedPassword(host, _):
             return host
-        case let .savedCredential(entry):
-            return entry.host
+        case let .savedCredential(credential):
+            return credential.host
         case let .email(suggestion):
             return suggestion.host
         }
@@ -102,7 +102,7 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
 
 struct PasswordAutofillOverlayState: Equatable {
     let focus: PasswordBridgeFocusPayload
-    let savedPasswordEntries: [SavedPasswordSummary]
+    let savedPasswordEntries: [ProviderCredential]
     let emailSuggestions: [PasswordEmailSuggestion]
     let generatedPassword: String?
     let selectedSuggestionIndex: Int
@@ -196,16 +196,13 @@ final class PasswordAutofillCoordinator {
         setOverlayKeyboardActive(true)
     }
 
-    func autofill(_ entry: SavedPasswordSummary, for overlay: PasswordAutofillOverlayState) {
+    func autofill(_ credential: ProviderCredential, for overlay: PasswordAutofillOverlayState) {
         Task { [weak self] in
             guard let self else { return }
 
-            let authenticated = await self.passwordManager.authenticate(
-                reason: "Autofill the saved password for \(entry.displayUsername) on \(entry.host)"
-            )
-            guard authenticated,
-                  let password = try? self.passwordManager.revealPassword(for: entry)
-            else {
+            // TODO(1.12): route through `providers.activeProvider(for: settings.passwordManagerProvider)`
+            // once the registry can resolve a live provider instance from a provider kind.
+            guard let revealed = try? await EvoPasswordProvider().reveal(credential) else {
                 return
             }
 
@@ -213,14 +210,13 @@ final class PasswordAutofillCoordinator {
                 let request = PasswordFillRequest(
                     usernameFieldID: overlay.focus.usernameFieldID,
                     passwordFieldIDs: overlay.focus.passwordFieldIDs,
-                    username: entry.username.isEmpty ? nil : entry.username,
-                    password: password,
+                    username: revealed.username.isEmpty ? nil : revealed.username,
+                    password: revealed.password,
                     highlightColor: "#E8F5E9",
                     submitAfterFill: overlay.focus.action == .login && self.settings.passwordAutofillSubmitEnabled
                 )
 
                 self.evaluate(scriptMethod: "fillCredentials", payload: request)
-                self.passwordManager.markUsed(entry)
                 self.dismissOverlay()
             }
         }
@@ -296,7 +292,9 @@ final class PasswordAutofillCoordinator {
 
         let suggestions = Self.resolveSuggestions(
             for: focus,
-            matchingEntries: passwordManager.matchingEntries(for: pageURL, containerID: tab?.container.id),
+            // TODO(1.12): source from `providers.activeProvider(for:).credentials(for:containerID:)` instead.
+            matchingEntries: passwordManager.matchingEntries(for: pageURL, containerID: tab?.container.id)
+                .map(EvoPasswordProvider.credential(from:)),
             emailSuggestions: passwordManager.emailSuggestions(for: tab?.container.id),
             generatedPassword: focus.action == .createAccount ? passwordManager.generateStrongPassword() : nil
         )
@@ -609,11 +607,11 @@ final class PasswordAutofillCoordinator {
 
     static func resolveSuggestions(
         for focus: PasswordBridgeFocusPayload,
-        matchingEntries: [SavedPasswordSummary],
+        matchingEntries: [ProviderCredential],
         emailSuggestions: [PasswordEmailSuggestion],
         generatedPassword: String?
     ) -> PasswordAutofillOverlayState {
-        let savedPasswordEntries: [SavedPasswordSummary]
+        let savedPasswordEntries: [ProviderCredential]
         let filteredEmailSuggestions: [PasswordEmailSuggestion]
         let filteredGeneratedPassword: String?
 

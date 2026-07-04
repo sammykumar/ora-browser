@@ -53,28 +53,26 @@ actor OpHelperProcess {
             throw OpHelperError.decode
         }
 
-        return try await withThrowingTaskGroup(of: [String: Any].self) { group in
-            group.addTask { try await self.awaitResponse(id: id, line: line) }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(self.requestTimeout * 1_000_000_000))
-                throw OpHelperError.timeout
-            }
-            defer { group.cancelAll() }
-            guard let first = try await group.next() else { throw OpHelperError.timeout }
-            return first
-        }
-    }
-
-    private func awaitResponse(id: String, line: String) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
             do {
                 try transport.send(line: line)
             } catch {
                 pending[id] = nil
                 continuation.resume(throwing: error)
+                return
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(self.requestTimeout * 1_000_000_000))
+                await self.timeoutIfStillPending(id: id)
             }
         }
+    }
+
+    private func timeoutIfStillPending(id: String) {
+        guard let continuation = pending.removeValue(forKey: id) else { return }
+        logger.error("op-helper request \(id) timed out")
+        continuation.resume(throwing: OpHelperError.timeout)
     }
 
     private func receive(line: String) {
@@ -83,17 +81,19 @@ actor OpHelperProcess {
               let id = obj["id"] as? String,
               let continuation = pending.removeValue(forKey: id)
         else {
+            logger.error("op-helper received unparseable or uncorrelated line")
             return
         }
         // swiftlint:disable:next identifier_name
         if let ok = obj["ok"] as? Bool, ok {
             continuation.resume(returning: obj["result"] as? [String: Any] ?? [:])
         } else if let err = obj["error"] as? [String: Any] {
-            continuation.resume(throwing: OpHelperError.wire(
-                code: err["code"] as? String ?? "internal",
-                message: err["message"] as? String ?? ""
-            ))
+            let code = err["code"] as? String ?? "internal"
+            let message = err["message"] as? String ?? ""
+            logger.error("op-helper request \(id) failed: \(code) \(message)")
+            continuation.resume(throwing: OpHelperError.wire(code: code, message: message))
         } else {
+            logger.error("op-helper request \(id) returned undecodable response")
             continuation.resume(throwing: OpHelperError.decode)
         }
     }

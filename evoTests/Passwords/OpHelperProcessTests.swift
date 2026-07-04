@@ -17,11 +17,24 @@ private final class EchoTransport: OpHelperTransport {
     func terminate() {}
 }
 
+private final class NeverRespondingTransport: OpHelperTransport {
+    var onLine: ((String) -> Void)?
+    func send(line: String) throws {}
+    func terminate() {}
+}
+
 struct OpHelperProcessTests {
     @Test func correlatesResponseToRequestByID() async throws {
         let transport = EchoTransport()
         let helper = OpHelperProcess(transport: transport)
         let result = try await helper.request(method: "status", params: [:])
         #expect((result["echo"] as? Bool) == true)
+    }
+
+    @Test(.timeLimit(.minutes(1))) func timesOutWhenNoResponseArrives() async throws {
+        let helper = OpHelperProcess(transport: NeverRespondingTransport(), requestTimeout: 0.05)
+        await #expect(throws: OpHelperError.timeout) {
+            _ = try await helper.request(method: "status", params: [:])
+        }
     }
 }

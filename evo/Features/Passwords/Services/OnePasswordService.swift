@@ -13,6 +13,7 @@
 //  transport factory.
 //
 
+import AppKit
 import Combine
 import Foundation
 
@@ -63,14 +64,17 @@ final class OnePasswordService: ObservableObject {
         state = .syncing
         var merged: [ProviderCredential] = []
         var anyLocked = false
+        var lastErrorState: ProviderState?
         for account in accounts {
             guard let process = processes[account] else { continue }
             do {
                 let result = try await process.request(method: "listItems", params: [:])
                 let items = result["items"] as? [[String: Any]] ?? []
                 merged.append(contentsOf: items.compactMap { Self.credential(from: $0, account: account) })
-            } catch let OpHelperError.wire(code, _) where code == "locked" || code == "channelClosed" {
+            } catch let OpHelperError.wire(code, _) where code == "locked" {
                 anyLocked = true
+            } catch let OpHelperError.wire(code, _) {
+                lastErrorState = Self.disambiguate(errorCode: code, appRunning: onePasswordRunning())
             } catch {
                 continue
             }
@@ -80,7 +84,37 @@ final class OnePasswordService: ObservableObject {
             let key = "\(credential.host)|\(credential.username)|\(credential.accountLabel ?? "")"
             return seen.insert(key).inserted
         }
-        state = anyLocked ? .locked : .ready
+        if anyLocked {
+            state = .locked
+        } else if !metadata.isEmpty {
+            state = .ready
+        } else if let lastErrorState {
+            state = lastErrorState
+        } else {
+            state = .ready
+        }
+    }
+
+    /// Disambiguates the sidecar's ambiguous `channelClosed` wire error (which can mean
+    /// either "1Password isn't running" or "the integration toggle is off") using whether
+    /// the 1Password app process is currently running.
+    nonisolated static func disambiguate(errorCode: String, appRunning: Bool) -> ProviderState {
+        switch errorCode {
+        case "appMissing":
+            return .unavailable(reason: "1Password isn’t installed")
+        case "channelClosed":
+            return appRunning
+                ? .unavailable(reason: "Enable Settings → Developer → Integrate with other apps in 1Password")
+                : .unavailable(reason: "1Password isn’t running")
+        case "locked":
+            return .locked
+        default:
+            return .unavailable(reason: "1Password error")
+        }
+    }
+
+    private func onePasswordRunning() -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: "com.1password.1password").isEmpty
     }
 
     /// Lazily configures all accounts from settings and populates the cache, exactly once per

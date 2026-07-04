@@ -2011,6 +2011,17 @@ git add evo/App/EvoApp.swift evoTests/Passwords/OnePasswordServiceShutdownTests.
 git commit -m "feat(passwords): reap op-helper sidecars on app quit"
 ```
 
+### Task 1.13b: Lazy 1Password configuration trigger (added during execution)
+
+**Discovered during execution:** nothing configured `OnePasswordService` at runtime, so the overlay was always empty; and because the sidecar authenticates at spawn, spawn-timing = auth-prompt-timing. Sam chose **lazy spawn on first login-field focus** (once per session, not at launch).
+
+**Files:**
+- Modify: `evo/Features/Passwords/Services/OnePasswordService.swift` (add `ensureConfigured()`)
+- Modify: `evo/Features/Passwords/Providers/OnePasswordProvider.swift` (`credentials(for:)` calls it first)
+- Test: `evoTests/Passwords/OnePasswordServiceTests.swift`
+
+`ensureConfigured()` is `@MainActor`, idempotent, in-flight-guarded (a stored `configureTask` so two rapid focuses don't double-spawn — the check-then-set is synchronous, no `await` between reading and assigning `configureTask`), reads `SettingsStore.shared.onePasswordAccountName`, and calls `configureAccounts([account]) + refresh()` exactly once. `OnePasswordProvider.credentials(for:containerID:)` awaits it before reading the cache, so the first autofill lookup triggers the one-time spawn+refresh (and Touch ID prompt). NOTHING configures at launch. The idempotency test asserts `listItemsCalls == 1` after two `ensureConfigured()` calls (a call-count assertion — the guard would otherwise pass regardless since `configureAccounts`/`refresh` are leaf-idempotent).
+
 ### Task 1.14: End-to-end fill verification (manual)
 
 **Files:** none (verification task).

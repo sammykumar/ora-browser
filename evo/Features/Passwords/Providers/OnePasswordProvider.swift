@@ -11,7 +11,8 @@ final class OnePasswordProvider: PasswordProvider {
     }
 
     nonisolated func credentials(for url: URL, containerID: UUID?) async -> [ProviderCredential] {
-        await MainActor.run { service.credentials(for: url) }
+        await service.ensureConfigured()
+        return await MainActor.run { service.credentials(for: url) }
     }
 
     nonisolated func reveal(_ credential: ProviderCredential) async throws -> RevealedCredential {

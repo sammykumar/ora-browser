@@ -26,6 +26,7 @@ final class OnePasswordService: ObservableObject {
     private var accounts: [String] = []
     private var processes: [String: OpHelperProcess] = [:]
     private let transportFactory: (String) -> OpHelperTransport
+    private var configureTask: Task<Void, Never>?
 
     init(transportFactory: ((String) -> OpHelperTransport)? = nil) {
         self.transportFactory = transportFactory ?? OnePasswordService.makeProcessTransport
@@ -76,6 +77,23 @@ final class OnePasswordService: ObservableObject {
         }
         metadata = merged
         state = anyLocked ? .locked : .ready
+    }
+
+    /// Lazily configures accounts from settings and populates the cache, exactly once per
+    /// service lifetime. Concurrent callers await the same in-flight configuration.
+    func ensureConfigured() async {
+        if let configureTask {
+            await configureTask.value
+            return
+        }
+        let account = SettingsStore.shared.onePasswordAccountName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !account.isEmpty else { return }
+        let task = Task { @MainActor in
+            configureAccounts([account])
+            await refresh()
+        }
+        configureTask = task
+        await task.value
     }
 
     func credentials(for url: URL) -> [ProviderCredential] {

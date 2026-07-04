@@ -47,9 +47,8 @@ func itemToMetadata(vaultID string, ov onepassword.ItemOverview, full onepasswor
 // if it has a TOTP field with an SDK-computed code.
 func extractTOTP(item onepassword.Item) (string, bool) {
 	for _, f := range item.Fields {
-		if f.FieldType == onepassword.ItemFieldTypeTOTP {
-			details := f.Details.OTP()
-			if details != nil && details.Code != nil {
+		if f.FieldType == onepassword.ItemFieldTypeTOTP && f.Details != nil {
+			if details := f.Details.OTP(); details != nil && details.Code != nil {
 				return *details.Code, true
 			}
 		}

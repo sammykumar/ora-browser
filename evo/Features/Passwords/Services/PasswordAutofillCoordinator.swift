@@ -397,10 +397,8 @@ final class PasswordAutofillCoordinator {
     }
 
     private func handleSubmit(_ payload: PasswordBridgeSubmitPayload, pageURL: URL?) {
-        let provider = providers.descriptor(for: settings.passwordManagerProvider)
         guard settings.passwordsEnabled,
               settings.passwordSavePromptsEnabled,
-              provider.usesBuiltInVault,
               tab?.isPrivate == false,
               let pageURL,
               let normalizedHost = PasswordManagerService.normalizedHost(from: pageURL)
@@ -439,13 +437,18 @@ final class PasswordAutofillCoordinator {
             isUpdate: matchingEntry != nil
         )
 
-        let saveAction: () -> Void = {
-            _ = try? self.passwordManager.upsertCredential(
-                for: pageURL,
-                username: trimmedUsername,
-                password: trimmedPassword,
-                containerID: self.tab?.container.id
+        let saveAction: () -> Void = { [weak self] in
+            guard let self else { return }
+            let target = Self.saveTarget(
+                forProvider: self.settings.passwordManagerProvider, accounts: self.settings.onePasswordAccounts,
+                defaultVaultID: nil, containerID: self.tab?.container.id, existingItemID: nil
             )
+            Task { @MainActor in
+                let provider = self.providers.activeProvider(for: self.settings.passwordManagerProvider)
+                _ = try? await provider.save(
+                    url: pageURL, username: trimmedUsername, password: trimmedPassword, target: target
+                )
+            }
         }
 
         Task { @MainActor [weak self] in
@@ -707,9 +710,27 @@ final class PasswordAutofillCoordinator {
     }
 }
 
-// MARK: - Locked / syncing provider overlays
+// MARK: - Locked / syncing provider overlays / save routing
 
 extension PasswordAutofillCoordinator {
+    /// Builds the provider-appropriate save destination; Task 3.4's account/vault picker refines this.
+    static func saveTarget(
+        forProvider kind: PasswordManagerProviderKind,
+        accounts: [String],
+        defaultVaultID: String?,
+        containerID: UUID?,
+        existingItemID: String?
+    ) -> SaveTarget {
+        switch kind {
+        case .onePassword:
+            return .onePassword(
+                accountName: accounts.first ?? "", vaultID: defaultVaultID ?? "", existingItemID: existingItemID
+            )
+        default:
+            return .evoContainer(containerID)
+        }
+    }
+
     private static func makeOverlayState(
         for focus: PasswordBridgeFocusPayload,
         normalizedHost: String,

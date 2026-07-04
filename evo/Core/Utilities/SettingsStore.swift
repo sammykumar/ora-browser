@@ -159,6 +159,7 @@ class SettingsStore: ObservableObject {
     private let passwordsEnabledKey = "settings.passwords.enabled"
     private let passwordManagerProviderKey = "settings.passwords.provider"
     private let onePasswordAccountNameKey = "settings.passwords.onePassword.account"
+    private let onePasswordAccountsKey = "settings.passwords.onePassword.accounts"
     private let passwordAutofillEnabledKey = "settings.passwords.autofillEnabled"
     private let passwordAutofillSubmitEnabledKey = "settings.passwords.autofillSubmitEnabled"
     private let passwordSavePromptsEnabledKey = "settings.passwords.savePromptsEnabled"
@@ -254,6 +255,10 @@ class SettingsStore: ObservableObject {
         didSet { defaults.set(onePasswordAccountName, forKey: onePasswordAccountNameKey) }
     }
 
+    @Published private(set) var onePasswordAccounts: [String] {
+        didSet { saveCodable(onePasswordAccounts, forKey: onePasswordAccountsKey) }
+    }
+
     @Published var passwordAutofillEnabled: Bool {
         didSet { defaults.set(passwordAutofillEnabled, forKey: passwordAutofillEnabledKey) }
     }
@@ -347,6 +352,14 @@ class SettingsStore: ObservableObject {
         passwordAutofillSubmitEnabled = defaults.object(forKey: passwordAutofillSubmitEnabledKey) as? Bool ?? true
         passwordSavePromptsEnabled = defaults.object(forKey: passwordSavePromptsEnabledKey) as? Bool ?? true
         onePasswordAccountName = defaults.string(forKey: onePasswordAccountNameKey) ?? ""
+
+        var loadedAccounts = Self.loadCodable([String].self, key: onePasswordAccountsKey) ?? []
+        let legacySingle = defaults.string(forKey: onePasswordAccountNameKey) ?? ""
+        if loadedAccounts.isEmpty, !legacySingle.isEmpty {
+            loadedAccounts = [legacySingle]
+        }
+        onePasswordAccounts = loadedAccounts
+
         suppressedPasswordSavePromptHosts = Set(defaults
             .stringArray(forKey: suppressedPasswordSavePromptHostsKey) ?? [])
 
@@ -491,6 +504,22 @@ class SettingsStore: ObservableObject {
         var shortcuts = customKeyboardShortcuts
         shortcuts.removeValue(forKey: id)
         customKeyboardShortcuts = shortcuts
+    }
+
+    // MARK: - 1Password accounts
+
+    func setOnePasswordAccounts(_ names: [String]) {
+        onePasswordAccounts = names
+    }
+
+    func addOnePasswordAccount(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !onePasswordAccounts.contains(trimmed) else { return }
+        onePasswordAccounts.append(trimmed)
+    }
+
+    func removeOnePasswordAccount(_ name: String) {
+        onePasswordAccounts.removeAll { $0 == name }
     }
 
     // MARK: - Password prompts

@@ -21,6 +21,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        OnePasswordService.shared.shutdownAll()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         handleIncomingURLs(urls)
     }

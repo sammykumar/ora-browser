@@ -10,6 +10,7 @@ enum PasswordAutofillFieldKind: String, Codable {
     case email
     case password
     case username
+    case oneTimeCode
 }
 
 enum PasswordAutofillKeyCommand: String, Codable {
@@ -601,6 +602,17 @@ final class PasswordAutofillCoordinator {
             filteredGeneratedPassword = nil
         case (.createAccount, .username):
             savedPasswordEntries = []
+            filteredEmailSuggestions = []
+            filteredGeneratedPassword = nil
+        case (.createAccount, .oneTimeCode):
+            savedPasswordEntries = []
+            filteredEmailSuggestions = []
+            filteredGeneratedPassword = nil
+        case (.login, .oneTimeCode):
+            // Only credentials with a saved TOTP secret are relevant to an OTP field.
+            // Task 4.4 turns this filtered set into a single "Fill one-time code" suggestion
+            // and performs the actual fetch/fill; for now we just narrow the candidate set.
+            savedPasswordEntries = matchingEntries.filter(\.hasTotp)
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
         case (.login, _):

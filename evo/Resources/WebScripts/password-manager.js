@@ -83,6 +83,25 @@
             || element.autocomplete === "username";
     }
 
+    function isOneTimeCodeField(element) {
+        if (!(element instanceof HTMLInputElement)) {
+            return false;
+        }
+        if (element.autocomplete === "one-time-code") {
+            return true;
+        }
+        const joined = [
+            element.name, element.id, element.placeholder,
+            element.autocomplete, element.getAttribute("aria-label")
+        ].filter(Boolean).join(" ").toLowerCase();
+        return joined.includes("one-time")
+            || joined.includes("otp")
+            || joined.includes("2fa")
+            || joined.includes("mfa")
+            || joined.includes("verification code")
+            || joined.includes("security code");
+    }
+
     function fieldKindFor(element) {
         if (!(element instanceof HTMLInputElement)) {
             return null;
@@ -98,6 +117,10 @@
 
         if (isUsernameField(element)) {
             return "username";
+        }
+
+        if (isOneTimeCodeField(element)) {
+            return "oneTimeCode";
         }
 
         return null;
@@ -130,6 +153,9 @@
         const passwordFields = inputs.filter((input) => input.type === "password");
 
         if (!passwordFields.length) {
+            if (isOneTimeCodeField(element)) {
+                return { action: "login", usernameField: null, passwordFields: [], oneTimeCode: true };
+            }
             return null;
         }
 

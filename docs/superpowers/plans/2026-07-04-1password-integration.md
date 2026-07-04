@@ -2032,6 +2032,61 @@ git commit -m "feat(passwords): reap op-helper sidecars on app quit"
 
 ---
 
+## UAT Test Plan — Slice 1 (Fill)
+
+**"User" = Sam.** These are hands-on acceptance tests for the 1Password *fill* functionality delivered by Slice 1 (Tasks 1.1–1.13b). Check off each as it passes; add a note if anything deviates.
+
+### Preconditions (set up already, but confirm)
+- Debug Evo is running (unsigned, App Sandbox removed).
+- Provider = 1Password, account = `my.1password.com` (set via `defaults`; no settings UI yet — that's Slice 2).
+- 1Password desktop app is running with **Settings → Developer → Integrate with 1Password SDKs** enabled.
+- The current Evo instance is a **fresh session** (no 1Password authorization yet this run) — UAT-1 needs that. To reset later, quit Evo (⌘Q) and relaunch.
+
+### Known NOT in Slice 1 — do not file these as bugs
+- **Save/update to 1Password** — submitting a new/changed login will NOT offer to save to 1Password (that's Slice 3). No save prompt is expected with 1Password selected.
+- **One-time codes (TOTP)** — Slice 4.
+- **Multiple accounts** — Slice 2.
+- **Settings connection panel** — the Passwords pane still shows placeholder "coming soon"-style text instead of a status/account UI (Slice 2, Task 2.4). The provider dropdown itself works.
+
+### Tests
+
+- [ ] **UAT-1 — First-focus authorization + overlay.** In the fresh session, open a site you have a 1Password login for (e.g. `github.com/login`). Click into the username or password field. **Expected:** a **1Password authorization prompt for "Evo"** appears → approve with **Touch ID**; after a few-seconds vault sync, the autofill **overlay appears** under the field listing your matching 1Password login(s). _(First focus is the slow one — auth + sync. If the overlay doesn't show because focus was lost, click back into the field; see UAT-4.)_
+  - Notes:
+
+- [ ] **UAT-2 — Fill from the overlay.** Click the suggested 1Password credential. **Expected:** username + password fill (brief green highlight). If it's a login form and auto-submit is on (default), the form submits.
+  - Notes:
+
+- [ ] **UAT-3 — Account badge.** Look at the suggestion row from UAT-1/2. **Expected:** it shows a small **account badge** (e.g. `my`, derived from `my.1password.com`) next to the username.
+  - Notes:
+
+- [ ] **UAT-4 — No second Touch ID within the session (silent reveal + warm cache).** Still in the same session, focus a login field again (same or another page). **Expected:** the overlay appears **instantly with no Touch ID prompt** — the session is authorized and the metadata cache is warm.
+  - Notes:
+
+- [ ] **UAT-5 — Second site, instant.** Navigate to a *different* site you also have a 1Password login for; focus its login field. **Expected:** overlay appears immediately with that site's credential (no prompt, no multi-second wait).
+  - Notes:
+
+- [ ] **UAT-6 — Host-match safety: site not in your vault.** Open a login page for a site you do **not** have in 1Password; focus the field. **Expected:** **no** 1Password overlay (nothing offered).
+  - Notes:
+
+- [ ] **UAT-7 — Host-match safety: no cross-site leakage.** Pick a site you DO have a login for (say `github.com`). Confirm the overlay only offers it on that site's real host — not on unrelated pages that merely mention the name. **Expected:** the credential is offered only on its actual host, never on a different site. _(Hard to force manually — spot-check; skip if no easy repro.)_
+  - Notes:
+
+- [ ] **UAT-8 — Keyboard navigation.** With the overlay showing, press **↓/↑** to move the selection, **Enter** to fill the highlighted one, **Esc** to dismiss. **Expected:** selection moves, Enter fills, Esc closes the overlay.
+  - Notes:
+
+- [ ] **UAT-9 — Private window: no 1Password autofill.** Open a **private window** (New Private Window), go to a login page, focus a field. **Expected:** **no** 1Password overlay in private windows.
+  - Notes:
+
+- [ ] **UAT-10 — Regression: Evo Passwords still works.** Open **Settings → Passwords**, switch the provider dropdown to **Evo Passwords**. Go to a site saved in Evo's own vault; focus the field. **Expected:** Evo's built-in autofill works as before (its own overlay + per-fill Touch ID). Switch the dropdown back to **1Password** afterward.
+  - Notes:
+
+- [ ] **UAT-11 — Sidecar reaped on quit.** After filling at least once (sidecar running), **quit Evo (⌘Q, confirm)**. **Expected:** no lingering `evo-op-helper` process. _(Tell me when done and I'll verify with `pgrep -f evo-op-helper` — should return nothing.)_
+  - Notes:
+
+**When done:** tell me which passed / failed with your notes. All green → Slice 1 (Fill) is accepted and I move to Slice 2 (multi-account + the real settings panel so you're off `defaults write`). Any failure → I debug with sidecar/console logs before proceeding.
+
+---
+
 ## Slice 2 — Multi-account + settings panel (Tasks 2.1–2.7)
 
 ### Task 2.1: `onePasswordAccounts` setting (Codable list)

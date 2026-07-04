@@ -28,6 +28,11 @@ targets:
       - path: evo
         excludes:
           - "Assets/Icons/**"
+      - path: tools/op-helper/bin/evo-op-helper
+        buildPhase:
+          copyFiles:
+            destination: executables      # -> Evo.app/Contents/MacOS
+        attributes: [CodeSignOnCopy]
     resources:
       - path: evo/Shared/EmojiPicker/emoji-set.json
       - path: evo/Resources
@@ -97,7 +102,6 @@ targets:
     entitlements:
       path: evo/Info/evo.entitlements
       properties:
-        com.apple.security.app-sandbox: true
         com.apple.security.assets.movies.read-only: true
         com.apple.security.assets.music.read-only: true
         com.apple.security.assets.pictures.read-only: true

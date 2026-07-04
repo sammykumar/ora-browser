@@ -40,4 +40,25 @@ enum ClipboardUtils {
         copyToClipboard(text)
         toastManager?.show(message, icon: .evo(.copy))
     }
+
+    /// Copies a sensitive value (e.g. a one-time code) to the clipboard, then clears it after
+    /// `seconds` — but only if the pasteboard still holds the value we wrote (i.e. the user hasn't
+    /// copied something else in the meantime). The `schedule` closure is injectable for testing.
+    static func copySensitive(
+        _ value: String,
+        clearingAfter seconds: TimeInterval,
+        schedule: (TimeInterval, @escaping () -> Void) -> Void = { delay, work in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    ) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(value, forType: .string)
+        let expectedChangeCount = pasteboard.changeCount
+        schedule(seconds) {
+            let pb = NSPasteboard.general
+            guard pb.changeCount == expectedChangeCount, pb.string(forType: .string) == value else { return }
+            pb.clearContents()
+        }
+    }
 }

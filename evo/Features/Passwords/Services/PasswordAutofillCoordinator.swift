@@ -306,6 +306,9 @@ final class PasswordAutofillCoordinator {
                 )
                 self.evaluate(scriptMethod: "fillCredentials", payload: request)
                 self.dismissOverlay()
+
+                ClipboardUtils.copySensitive(code, clearingAfter: 90)
+                ToastManager.shared.show("One-time code copied", type: .info, icon: .system("clock"))
             }
         }
     }

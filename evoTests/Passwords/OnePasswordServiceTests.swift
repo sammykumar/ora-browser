@@ -74,9 +74,9 @@ struct OnePasswordServiceTests {
 
     @Test func ensureConfiguredIsIdempotentAndPopulatesFromSetting() async {
         let store = SettingsStore.shared
-        let baselineAccountName = store.onePasswordAccountName
-        store.onePasswordAccountName = "my.1password.com"
-        defer { store.onePasswordAccountName = baselineAccountName }
+        let baselineAccounts = store.onePasswordAccounts
+        store.setOnePasswordAccounts(["my.1password.com"])
+        defer { store.setOnePasswordAccounts(baselineAccounts) }
 
         let transport = CountingStubTransport()
         let service = OnePasswordService(transportFactory: { _ in transport })

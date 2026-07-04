@@ -75,21 +75,25 @@ final class OnePasswordService: ObservableObject {
                 continue
             }
         }
-        metadata = merged
+        var seen = Set<String>()
+        metadata = merged.filter { credential in
+            let key = "\(credential.host)|\(credential.username)|\(credential.accountLabel ?? "")"
+            return seen.insert(key).inserted
+        }
         state = anyLocked ? .locked : .ready
     }
 
-    /// Lazily configures accounts from settings and populates the cache, exactly once per
+    /// Lazily configures all accounts from settings and populates the cache, exactly once per
     /// service lifetime. Concurrent callers await the same in-flight configuration.
     func ensureConfigured() async {
         if let configureTask {
             await configureTask.value
             return
         }
-        let account = SettingsStore.shared.onePasswordAccountName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !account.isEmpty else { return }
+        let names = SettingsStore.shared.onePasswordAccounts
+        guard !names.isEmpty else { return }
         let task = Task { @MainActor in
-            configureAccounts([account])
+            configureAccounts(names)
             await refresh()
         }
         configureTask = task

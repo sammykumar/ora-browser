@@ -29,4 +29,55 @@ struct SaveRoutingTests {
         }
         #expect(containerID == id)
     }
+
+    @Test func existingOnePasswordItemIDReturnsRefWhenUsernameMatches() {
+        let credentials = [
+            makeOnePasswordCredential(username: "someone-else", accountName: "acct", vaultID: "v1", itemID: "item-1"),
+            makeOnePasswordCredential(username: "sam@example.com", accountName: "acct", vaultID: "v2", itemID: "item-2")
+        ]
+
+        let match = PasswordAutofillCoordinator.existingOnePasswordItemID(
+            matching: "sam@example.com",
+            in: credentials
+        )
+
+        #expect(match?.accountName == "acct")
+        #expect(match?.vaultID == "v2")
+        #expect(match?.itemID == "item-2")
+    }
+
+    @Test func existingOnePasswordItemIDReturnsNilWhenNoUsernameMatches() {
+        let credentials = [
+            makeOnePasswordCredential(username: "someone-else", accountName: "acct", vaultID: "v1", itemID: "item-1")
+        ]
+
+        let match = PasswordAutofillCoordinator.existingOnePasswordItemID(
+            matching: "sam@example.com",
+            in: credentials
+        )
+
+        #expect(match == nil)
+    }
+
+    @Test func existingOnePasswordItemIDReturnsNilForEmptyCredentials() {
+        let match = PasswordAutofillCoordinator.existingOnePasswordItemID(matching: "sam@example.com", in: [])
+        #expect(match == nil)
+    }
+
+    private func makeOnePasswordCredential(
+        username: String,
+        accountName: String,
+        vaultID: String,
+        itemID: String
+    ) -> ProviderCredential {
+        ProviderCredential(
+            id: "\(accountName)-\(vaultID)-\(itemID)",
+            ref: .onePassword(accountName: accountName, vaultID: vaultID, itemID: itemID),
+            title: "example.com",
+            username: username,
+            host: "example.com",
+            accountLabel: accountName,
+            hasTotp: false
+        )
+    }
 }

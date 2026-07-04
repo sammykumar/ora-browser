@@ -40,6 +40,23 @@ extension PasswordAutofillCoordinator {
             return
         }
 
+        // 1Password has no local record of its items (the Evo keychain is always empty for a
+        // 1Password user), so the dedup/"is this already saved?" check must ask 1Password's own
+        // metadata cache instead of `passwordManager.matchingEntries`. We deliberately don't
+        // reveal the stored password to compare it (that would trigger an extra auth prompt) —
+        // any match on username is treated as "prompt to update", never silently skipped.
+        if settings.passwordManagerProvider == .onePassword {
+            Task { @MainActor [weak self] in
+                await self?.handleOnePasswordSubmit(
+                    pageURL: pageURL,
+                    normalizedHost: normalizedHost,
+                    username: trimmedUsername,
+                    password: trimmedPassword
+                )
+            }
+            return
+        }
+
         let matchingEntry = passwordManager
             .matchingEntries(for: pageURL, containerID: tab?.container.id)
             .first { $0.username == trimmedUsername }
@@ -69,16 +86,69 @@ extension PasswordAutofillCoordinator {
         }
     }
 
+    /// Resolves the existing-match/dedup check for a 1Password submit, then hands off to
+    /// `presentSaveFlow` with `existingOnePasswordItem` set when a matching item was found.
+    @MainActor
+    private func handleOnePasswordSubmit(
+        pageURL: URL,
+        normalizedHost: String,
+        username: String,
+        password: String
+    ) async {
+        let existingItem = Self.existingOnePasswordItemID(
+            matching: username,
+            in: OnePasswordService.shared.credentials(for: pageURL)
+        )
+
+        let prompt = Self.savePromptDetails(
+            for: pageURL,
+            username: username,
+            normalizedHost: normalizedHost,
+            isUpdate: existingItem != nil
+        )
+
+        await presentSaveFlow(
+            prompt: prompt,
+            normalizedHost: normalizedHost,
+            pageURL: pageURL,
+            username: username,
+            password: password,
+            existingOnePasswordItem: existingItem
+        )
+    }
+
+    /// Returns the account/vault/item-id triple of the first 1Password credential whose username
+    /// matches `username`, or `nil` if none of the already-saved items match. Used to route a save
+    /// to the sidecar's UPDATE path (non-empty `itemId`) instead of always creating a new item.
+    static func existingOnePasswordItemID(
+        matching username: String,
+        in credentials: [ProviderCredential]
+    ) -> (accountName: String, vaultID: String, itemID: String)? {
+        guard let match = credentials.first(where: { $0.username == username }) else {
+            return nil
+        }
+        guard case let .onePassword(accountName, vaultID, itemID) = match.ref else {
+            return nil
+        }
+        return (accountName: accountName, vaultID: vaultID, itemID: itemID)
+    }
+
     /// Resolves the save destination before showing the confirmation alert. For 1Password this
     /// fetches every configured account's real vaults first — so both the direct-save path and
     /// the picker's defaults always carry a real vault id, never an empty one.
+    ///
+    /// When `existingOnePasswordItem` is non-nil (an already-saved 1Password item matches the
+    /// submitted username), the save targets that exact account/vault/item — skipping the
+    /// account/vault picker entirely, since the destination is already known — so the sidecar
+    /// performs an UPDATE instead of creating a duplicate item.
     @MainActor
     func presentSaveFlow(
         prompt: PasswordSavePromptDetails,
         normalizedHost: String,
         pageURL: URL,
         username: String,
-        password: String
+        password: String,
+        existingOnePasswordItem: (accountName: String, vaultID: String, itemID: String)? = nil
     ) async {
         let providerKind = settings.passwordManagerProvider
 
@@ -96,6 +166,18 @@ extension PasswordAutofillCoordinator {
                     password: password
                 )
             }
+            return
+        }
+
+        if let existingOnePasswordItem {
+            presentUpdateExistingOnePasswordItem(
+                existingOnePasswordItem,
+                prompt: prompt,
+                normalizedHost: normalizedHost,
+                pageURL: pageURL,
+                username: username,
+                password: password
+            )
             return
         }
 
@@ -123,6 +205,35 @@ extension PasswordAutofillCoordinator {
             let target = Self.saveTarget(
                 forProvider: .onePassword, accounts: [accountName], defaultVaultID: vaultID,
                 containerID: nil, existingItemID: nil
+            )
+            self?.performSave(
+                providerKind: .onePassword,
+                target: target,
+                pageURL: pageURL,
+                username: username,
+                password: password
+            )
+        }
+    }
+
+    /// Shows the save prompt and, on confirm, saves straight to the known existing item's
+    /// account/vault — the sidecar's UPDATE path (non-empty `existingItemID`), not a create.
+    @MainActor
+    private func presentUpdateExistingOnePasswordItem(
+        _ existingItem: (accountName: String, vaultID: String, itemID: String),
+        prompt: PasswordSavePromptDetails,
+        normalizedHost: String,
+        pageURL: URL,
+        username: String,
+        password: String
+    ) {
+        presentSavePrompt(prompt, normalizedHost: normalizedHost, pickerModel: nil) { [weak self] _, _ in
+            let target = Self.saveTarget(
+                forProvider: .onePassword,
+                accounts: [existingItem.accountName],
+                defaultVaultID: existingItem.vaultID,
+                containerID: nil,
+                existingItemID: existingItem.itemID
             )
             self?.performSave(
                 providerKind: .onePassword,

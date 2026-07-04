@@ -92,9 +92,19 @@ struct PasswordAutofillOverlayView: View {
             }
         case let .savedCredential(entry):
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.displayUsername)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color(nsColor: .labelColor))
+                HStack(spacing: 6) {
+                    Text(entry.displayUsername)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color(nsColor: .labelColor))
+                    if let badge = accountBadgeText(for: entry) {
+                        Text(badge)
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color(nsColor: .controlAccentColor).opacity(0.18))
+                            .clipShape(Capsule())
+                    }
+                }
                 Text(entry.host)
                     .font(.caption)
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
@@ -121,6 +131,12 @@ struct PasswordAutofillOverlayView: View {
             tab.passwordCoordinator?.fillEmailSuggestion(emailSuggestion, for: overlay)
         }
     }
+}
+
+func accountBadgeText(for credential: ProviderCredential) -> String? {
+    guard let label = credential.accountLabel else { return nil }
+    // "my.1password.com" -> "my"; "acme.1password.com" -> "acme".
+    return label.split(separator: ".").first.map(String.init) ?? label
 }
 
 private extension PasswordAutofillSuggestion {

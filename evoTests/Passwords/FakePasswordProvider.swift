@@ -39,6 +39,14 @@ final class FakePasswordProvider: PasswordProvider {
         credential.hasTotp ? "123456" : nil
     }
 
+    func structuredItems(_ category: StructuredCategory) async -> [ProviderStructuredItem] {
+        []
+    }
+
+    func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String] {
+        [:]
+    }
+
     var usesBuiltInOverlay: Bool {
         true
     }

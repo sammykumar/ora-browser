@@ -23,6 +23,7 @@ final class OnePasswordService: ObservableObject {
 
     @Published private(set) var state: ProviderState = .unavailable(reason: "Not configured")
     @Published private(set) var metadata: [ProviderCredential] = []
+    @Published private(set) var structuredMetadata: [ProviderStructuredItem] = []
 
     private var accounts: [String] = []
     private var processes: [String: OpHelperProcess] = [:]
@@ -64,6 +65,7 @@ final class OnePasswordService: ObservableObject {
         guard !accounts.isEmpty else { return }
         state = .syncing
         var merged: [ProviderCredential] = []
+        var structuredMerged: [ProviderStructuredItem] = []
         var anyLocked = false
         var lastErrorState: ProviderState?
         for account in accounts {
@@ -79,12 +81,21 @@ final class OnePasswordService: ObservableObject {
             } catch {
                 continue
             }
+            if let process = processes[account] {
+                if let result = try? await process.request(method: "listStructured", params: [:]),
+                   let items = result["items"] as? [[String: Any]]
+                {
+                    structuredMerged
+                        .append(contentsOf: items.compactMap { Self.structured(from: $0, account: account) })
+                }
+            }
         }
         var seen = Set<String>()
         metadata = merged.filter { credential in
             let key = "\(credential.host)|\(credential.username)|\(credential.accountLabel ?? "")"
             return seen.insert(key).inserted
         }
+        structuredMetadata = structuredMerged
         if anyLocked {
             state = .locked
         } else if !metadata.isEmpty {
@@ -223,6 +234,23 @@ final class OnePasswordService: ObservableObject {
         return result["code"] as? String
     }
 
+    func structuredItems(_ category: StructuredCategory) -> [ProviderStructuredItem] {
+        structuredMetadata.filter { $0.category == category }
+    }
+
+    func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String] {
+        guard case let .onePassword(accountName, vaultID, itemID) = ref,
+              let process = processes[accountName]
+        else { throw OpHelperError.notRunning }
+        let result = try await process.request(method: "fillItem", params: ["vaultId": vaultID, "itemId": itemID])
+        let raw = result["values"] as? [String: String] ?? [:]
+        var out: [FieldPurpose: String] = [:]
+        for (key, value) in raw {
+            if let purpose = FieldPurpose(rawValue: key) { out[purpose] = value }
+        }
+        return out
+    }
+
     func shutdownAll() {
         for process in processes.values {
             process.shutdownSync()
@@ -242,6 +270,21 @@ final class OnePasswordService: ObservableObject {
             host: host,
             accountLabel: account,
             hasTotp: dict["hasTotp"] as? Bool ?? false
+        )
+    }
+
+    nonisolated static func structured(from dict: [String: Any], account: String) -> ProviderStructuredItem? {
+        guard let id = dict["id"] as? String,
+              let vaultID = dict["vaultId"] as? String,
+              let categoryRaw = dict["category"] as? String,
+              let category = StructuredCategory(rawValue: categoryRaw)
+        else { return nil }
+        return ProviderStructuredItem(
+            id: id,
+            ref: .onePassword(accountName: account, vaultID: vaultID, itemID: id),
+            category: category,
+            title: dict["title"] as? String ?? "",
+            subtitle: dict["subtitle"] as? String ?? ""
         )
     }
 }

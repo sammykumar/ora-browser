@@ -27,6 +27,15 @@ final class OnePasswordProvider: PasswordProvider {
         try await service.totp(for: credential)
     }
 
+    nonisolated func structuredItems(_ category: StructuredCategory) async -> [ProviderStructuredItem] {
+        await service.ensureConfigured()
+        return await MainActor.run { service.structuredItems(category) }
+    }
+
+    nonisolated func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String] {
+        try await service.fillValues(for: ref)
+    }
+
     nonisolated var usesBuiltInOverlay: Bool {
         true
     }

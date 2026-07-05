@@ -6,6 +6,8 @@ protocol PasswordProvider: AnyObject {
     func reveal(_ credential: ProviderCredential) async throws -> RevealedCredential
     func save(url: URL, username: String, password: String, target: SaveTarget) async throws
     func totp(for credential: ProviderCredential) async throws -> String?
+    func structuredItems(_ category: StructuredCategory) async -> [ProviderStructuredItem]
+    func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String]
     var usesBuiltInOverlay: Bool { get }
     var state: ProviderState { get }
 }

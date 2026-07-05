@@ -49,6 +49,14 @@ final class EvoPasswordProvider: PasswordProvider {
         nil
     }
 
+    nonisolated func structuredItems(_ category: StructuredCategory) async -> [ProviderStructuredItem] {
+        []
+    }
+
+    nonisolated func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String] {
+        [:]
+    }
+
     var usesBuiltInOverlay: Bool {
         true
     }

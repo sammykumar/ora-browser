@@ -39,3 +39,25 @@ enum ProviderState: Equatable, Sendable {
     case syncing
     case unavailable(reason: String)
 }
+
+/// Fields Evo can fill across cards and identities. Raw values are the shared vocabulary
+/// mirrored by password-manager.js and the Go sidecar's extraction.
+enum FieldPurpose: String, Codable, Hashable, Sendable {
+    case cardholderName, cardNumber, expMonth, expYear, expDate, cvv
+    case givenName, familyName, fullName
+    case addressLine1, addressLine2, city, state, postalCode, country
+    case phone, email, organization
+}
+
+enum StructuredCategory: String, Codable, Hashable, Sendable {
+    case creditCard, identity
+}
+
+/// Secret-free metadata for a card/identity item surfaced to the overlay.
+struct ProviderStructuredItem: Identifiable, Hashable, Sendable {
+    let id: String
+    let ref: ProviderItemRef
+    let category: StructuredCategory
+    let title: String
+    let subtitle: String
+}

@@ -28,7 +28,7 @@ Spec: `docs/superpowers/specs/2026-07-05-passkey-support-design.md`.
      Source (public): https://github.com/sammykumar/evo-browser. I can provide a signed, notarized
      build for evaluation on request — please advise the preferred delivery method."
      (Repo is public as of 2026-07-05; Apple may still ask for a runnable notarized build.)
-6. Submit. **Record the submission date here:** ____________________
+6. Submit. **Submitted:** 2026-07-05 · **Apple Request ID:** `3QGVTHUN3G` · **Status:** pending Apple review.
 
 ### If the capability is not listed or the form errors
 Known friction: the capability may not appear on the App ID, or the form may return

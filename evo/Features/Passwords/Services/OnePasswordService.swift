@@ -81,13 +81,13 @@ final class OnePasswordService: ObservableObject {
             } catch {
                 continue
             }
-            if let process = processes[account] {
-                if let result = try? await process.request(method: "listStructured", params: [:]),
-                   let items = result["items"] as? [[String: Any]]
-                {
-                    structuredMerged
-                        .append(contentsOf: items.compactMap { Self.structured(from: $0, account: account) })
-                }
+            // Reuse the `process` already bound by the loop's guard; a structured-fetch
+            // failure is non-fatal and never touches the login-derived state below.
+            if let result = try? await process.request(method: "listStructured", params: [:]),
+               let items = result["items"] as? [[String: Any]]
+            {
+                structuredMerged
+                    .append(contentsOf: items.compactMap { Self.structured(from: $0, account: account) })
             }
         }
         var seen = Set<String>()

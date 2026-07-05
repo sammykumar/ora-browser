@@ -12,13 +12,20 @@ final class FakePasswordProvider: PasswordProvider {
     var injectedCredentials: [ProviderCredential]
     var secrets: [String: String]
     var stateValue: ProviderState
+    var fillValuesResult: [FieldPurpose: String]
     private(set) var savedCalls: [SaveCall] = []
     private(set) var revealCalls: [String] = []
 
-    init(credentials: [ProviderCredential] = [], secrets: [String: String] = [:], state: ProviderState = .ready) {
+    init(
+        credentials: [ProviderCredential] = [],
+        secrets: [String: String] = [:],
+        state: ProviderState = .ready,
+        fillValuesResult: [FieldPurpose: String] = [:]
+    ) {
         injectedCredentials = credentials
         self.secrets = secrets
         stateValue = state
+        self.fillValuesResult = fillValuesResult
     }
 
     func credentials(for url: URL, containerID: UUID?) async -> [ProviderCredential] {
@@ -44,7 +51,7 @@ final class FakePasswordProvider: PasswordProvider {
     }
 
     func fillValues(for ref: ProviderItemRef) async throws -> [FieldPurpose: String] {
-        [:]
+        fillValuesResult
     }
 
     var usesBuiltInOverlay: Bool {

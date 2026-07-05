@@ -151,6 +151,15 @@ struct PasswordAutofillOverlayView: View {
                     .font(.caption)
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             }
+        case let .fillIdentity(item):
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color(nsColor: .labelColor))
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+            }
         }
     }
 
@@ -165,6 +174,8 @@ struct PasswordAutofillOverlayView: View {
         case let .fillOneTimeCode(credential):
             tab.passwordCoordinator?.fillOneTimeCode(credential, for: overlay)
         case let .fillCard(item):
+            tab.passwordCoordinator?.fillStructured(item, for: overlay)
+        case let .fillIdentity(item):
             tab.passwordCoordinator?.fillStructured(item, for: overlay)
         case .unlockProvider:
             tab.passwordCoordinator?.unlockActiveProvider()
@@ -193,6 +204,8 @@ private extension PasswordAutofillSuggestion {
             return "clock.arrow.circlepath"
         case .fillCard:
             return "creditcard.fill"
+        case .fillIdentity:
+            return "person.text.rectangle"
         }
     }
 }

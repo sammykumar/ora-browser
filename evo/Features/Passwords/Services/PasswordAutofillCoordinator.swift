@@ -8,6 +8,7 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
     case unlockProvider(label: String)
     case fillOneTimeCode(ProviderCredential)
     case fillCard(ProviderStructuredItem)
+    case fillIdentity(ProviderStructuredItem)
 
     var id: String {
         switch self {
@@ -23,6 +24,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return "totp-\(credential.id)"
         case let .fillCard(item):
             return "card-\(item.id)"
+        case let .fillIdentity(item):
+            return "identity-\(item.id)"
         }
     }
 
@@ -39,6 +42,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
         case let .fillOneTimeCode(credential):
             return credential.host
         case .fillCard:
+            return ""
+        case .fillIdentity:
             return ""
         }
     }
@@ -88,6 +93,10 @@ struct PasswordAutofillOverlayState: Equatable {
 
         if focus.fieldKind == .creditCard {
             return structuredItems.map(PasswordAutofillSuggestion.fillCard)
+        }
+
+        if focus.fieldKind == .identity {
+            return structuredItems.map(PasswordAutofillSuggestion.fillIdentity)
         }
 
         var items: [PasswordAutofillSuggestion] = []
@@ -253,26 +262,8 @@ final class PasswordAutofillCoordinator {
         }
     }
 
-    func fillStructured(_ item: ProviderStructuredItem, for overlay: PasswordAutofillOverlayState) {
-        Task { [weak self] in
-            guard let self else { return }
-
-            let provider = await self.providers.activeProvider(for: self.settings.passwordManagerProvider)
-            guard let values = try? await provider.fillValues(for: item.ref) else { return }
-
-            await MainActor.run {
-                let entries: [PasswordMultiFillRequest.FieldEntry] = (overlay.focus.fields ?? []).compactMap { field in
-                    guard let value = values[field.purpose] else { return nil }
-                    return PasswordMultiFillRequest.FieldEntry(fieldID: field.fieldID, value: value)
-                }
-                guard !entries.isEmpty else { return }
-
-                let request = PasswordMultiFillRequest(fields: entries, highlightColor: "#E8F5E9")
-                self.evaluate(scriptMethod: "fillFields", payload: request)
-                self.dismissOverlay()
-            }
-        }
-    }
+    // fillStructured / structuredFillEntries (card + identity fill) live in
+    // PasswordAutofillCoordinator+Structured.swift.
 
     func fillEmailSuggestion(_ suggestion: PasswordEmailSuggestion, for overlay: PasswordAutofillOverlayState) {
         guard overlay.focus.fieldKind == .email else {
@@ -322,6 +313,17 @@ final class PasswordAutofillCoordinator {
                 emailSuggestions: [],
                 generatedPassword: nil,
                 structuredItems: cards
+            )
+        }
+
+        if focus.fieldKind == .identity {
+            let ids = await provider.structuredItems(.identity)
+            return Self.resolveSuggestions(
+                for: focus,
+                matchingEntries: [],
+                emailSuggestions: [],
+                generatedPassword: nil,
+                structuredItems: ids
             )
         }
 
@@ -487,7 +489,7 @@ final class PasswordAutofillCoordinator {
         )
     }
 
-    private func evaluate(scriptMethod: String, payload: some Encodable) {
+    func evaluate(scriptMethod: String, payload: some Encodable) {
         guard let data = try? JSONEncoder().encode(payload),
               let payloadString = String(data: data, encoding: .utf8)
         else {
@@ -546,6 +548,8 @@ final class PasswordAutofillCoordinator {
         case let .fillOneTimeCode(credential):
             fillOneTimeCode(credential, for: overlay)
         case let .fillCard(item):
+            fillStructured(item, for: overlay)
+        case let .fillIdentity(item):
             fillStructured(item, for: overlay)
         case .unlockProvider:
             Task { @MainActor [weak self] in
@@ -622,6 +626,14 @@ final class PasswordAutofillCoordinator {
             return PasswordAutofillOverlayState(
                 focus: focus, savedPasswordEntries: [], emailSuggestions: [],
                 generatedPassword: nil, structuredItems: cards, selectedSuggestionIndex: 0
+            )
+        }
+
+        if focus.fieldKind == .identity {
+            let ids = structuredItems.filter { $0.category == .identity }
+            return PasswordAutofillOverlayState(
+                focus: focus, savedPasswordEntries: [], emailSuggestions: [],
+                generatedPassword: nil, structuredItems: ids, selectedSuggestionIndex: 0
             )
         }
 

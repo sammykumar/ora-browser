@@ -10,11 +10,24 @@ Spec: `docs/superpowers/specs/2026-07-05-passkey-support-design.md`.
 1. Sign in at developer.apple.com → Certificates, Identifiers & Profiles.
 2. Identifiers → select the `com.skproductions.evobrowser` App ID.
 3. Open the **Capability Requests** tab.
-4. Find the web-browser passkey capability (WebAuthn / public-key-credential). Click **Request**.
-5. In the form, describe the use: "Evo is a WKWebView-based macOS web browser; it needs to
-   perform WebAuthn passkey registration/assertion for arbitrary relying parties so users can
-   sign in with passkeys stored in system providers (1Password, iCloud Keychain), exactly as
-   Safari/Chrome/Firefox do."
+4. Find the row named **"Web Browser Public Key Credential Requests"** (this IS
+   `com.apple.developer.web-browser.public-key-credential`). Click its **+ / Request** —
+   that opens the request form. **Request ONLY this row.** Do NOT request the other
+   "Web Browser …" entries (Engine Host/Networking/Rendering/Web Content, JIT Access,
+   Embedded Browser Engine, Default Web Browser, Browser App Installation) — none are needed.
+5. Fill the form:
+   - **App Name:** `Evo Browser`
+   - **App Store URL / App Apple ID:** blank (not on the App Store)
+   - **Bundle ID of App:** `com.skproductions.evobrowser`
+   - **Is your app a web browser on macOS?** → **Yes**
+   - **Does your web browser support WebAuthn for web content?** → **Yes** (WKWebView does)
+   - **Integrate WebAuthn with passkeys in iCloud Keychain?** → **Yes** (WKWebView's native
+     WebAuthn surfaces iCloud Keychain AND 1Password automatically once entitled; accurate + favorable)
+   - **Link/download/eval credentials textarea:** "Evo is a personal, WebKit/WKWebView-based
+     macOS web browser (GPL-3.0), not distributed on the App Store or publicly released.
+     Source (public): https://github.com/sammykumar/evo-browser. I can provide a signed, notarized
+     build for evaluation on request — please advise the preferred delivery method."
+     (Repo is public as of 2026-07-05; Apple may still ask for a runnable notarized build.)
 6. Submit. **Record the submission date here:** ____________________
 
 ### If the capability is not listed or the form errors

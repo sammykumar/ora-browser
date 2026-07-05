@@ -3501,3 +3501,76 @@ git commit -m "feat(passwords): timed sensitive-clipboard clear for one-time cod
 - **Slice 1 order:** Go (1.1→1.4) and Swift types (1.5→1.7) are independent; 1.8 depends on 1.5; 1.9→1.11 depend on 1.5/1.6; 1.12 depends on 1.7/1.11 and enables the whole fill path; 1.13 depends on 1.10; 1.14 depends on 1.4+1.12.
 - **Slice 2** depends on Slice 1 (esp. 1.10/1.12). **Slice 3** depends on 1.10/1.12. **Slice 4** depends on 1.9/1.10/1.12 and touches the JS bridge + a new ClipboardUtils API.
 - Each slice is independently shippable: after Slice 1 you can fill from a single 1Password account; Slice 2 adds accounts + settings polish; Slice 3 adds save; Slice 4 adds TOTP.
+
+---
+
+## UAT Test Plan — Slices 2–4 (Settings, Save, TOTP)
+
+**"User" = Sam.** Hands-on acceptance tests for Slices 2–4, in the same checkable format as the Slice 1 UAT above. Slice 1 (fill) already passed. Several of these were spot-checked live on 2026-07-04 (noted); this is the formal pass. Check off each; add a note on anything that deviates.
+
+### Preconditions
+- Latest debug Evo running (`open ~/Library/Developer/Xcode/DerivedData/Evo-*/Build/Products/Debug/Evo.app`; rebuild with `./scripts/xcbuild-debug.sh` first if unsure).
+- 1Password desktop app running with **Settings → Developer → Integrate with 1Password SDKs** enabled.
+- **Configure through the app UI, NOT `defaults write`** (CLI writes don't reach the app here — cfprefsd split).
+
+### Known gaps — do NOT file these as bugs
+- **"Unlock 1Password…" row is unreachable** — the SDK doesn't cleanly report a *locked* vault (hang bug onepassword-sdk-go#266); a locked vault surfaces as a timeout + sidecar respawn, not an unlock prompt.
+- **Username/email-only pages don't trigger autofill** (e.g. Google sign-in step 1) — the bridge only fires on forms containing a password field (relaxed only for OTP fields).
+
+### Slice 2 — Multi-account + settings panel
+
+- [ ] **UAT-2.1 — Configure via the settings UI (replaces the old debug hack).** Settings → Passwords → set the **provider dropdown to "1Password"** → in the connection panel, type `my.1password.com` → **Add** → approve the Touch ID prompt. **Expected:** the account appears in the list; status line goes "Syncing…" then **"Connected · 1 account · N items"**. _(Spot-checked 2026-07-04 ✅.)_
+  - Notes:
+
+- [ ] **UAT-2.2 — Item count is real, not 0.** After the sync in 2.1 finishes, the status line shows your **actual item count** (~558 for the personal account), not "0 items". _(Open question from 2026-07-04 — the "0 items" seen then may have been captured mid-sync; confirm it settles on the real count. If it STAYS 0, that's a real bug — flag it.)_
+  - Notes:
+
+- [ ] **UAT-2.3 — Account badge.** On a login page with a match, the overlay suggestion row shows the small **account badge** (e.g. `my`). _(Spot-checked ✅.)_
+  - Notes:
+
+- [ ] **UAT-2.4 — "Prompt to save passwords" toggle is enabled.** In Settings → Passwords with 1Password selected, the **"Prompt to save passwords" toggle is controllable** (not greyed out), and the panel text is legible (contrast). _(Fixed 2026-07-04.)_
+  - Notes:
+
+- [ ] **UAT-2.5 — Second account merges.** Add your **work account** (`theuptownagency.1password.com`) via the panel → approve its prompt. **Expected:** status shows **2 accounts**; on a site you have in *both*, the overlay lists both credentials with distinct account badges.
+  - Notes:
+
+- [ ] **UAT-2.6 — Remove + Reconnect.** Remove an account (minus button) → it disappears and its credentials stop being offered. Click **Reconnect** → the vault re-syncs (status returns to Connected). _(Note: Reconnect currently rebuilds the sidecar, so expect a fresh Touch ID prompt — a known aggressiveness to refine later.)_
+  - Notes:
+
+### Slice 3 — Save / update *(these create/modify REAL items in your vault — use a throwaway login or delete after)*
+
+- [ ] **UAT-3.1 — Save a NEW login.** Log into a site **not** in 1Password → submit. **Expected:** a **"Save Password"** prompt → confirm → a new Login item is created. **Verify in the 1Password app** that the item exists with the right site/username.
+  - Notes:
+
+- [ ] **UAT-3.2 — Update, not duplicate.** Log into a site that **is** in 1Password, changing the password → submit. **Expected:** an **"Update Password"** prompt (not "Save") → confirm. **Verify in the 1Password app** that the existing item was *updated* and **no duplicate** was created. _(Spot-checked the "Update Password" prompt 2026-07-04 ✅ — still confirm the vault side.)_
+  - Notes:
+
+- [ ] **UAT-3.3 — Account/vault picker.** With ≥2 accounts (or an account with ≥2 writable vaults) configured, trigger a new save. **Expected:** the save prompt shows an **account + vault picker**; the item lands in the chosen vault.
+  - Notes:
+
+- [ ] **UAT-3.4 — "Never on This Site" still suppresses.** On a save prompt, click **"Never on This Site"** → confirm no save prompt appears on that host afterward (for either provider).
+  - Notes:
+
+### Slice 4 — TOTP (one-time codes)
+
+- [ ] **UAT-4.1 — Fill one-time code.** On a 2FA code page for a login whose 1Password item has a TOTP (e.g. GitHub 2FA) → focus the code field. **Expected:** a **"Fill one-time code"** row appears → clicking it **fills the current 6-digit code**. _(Spot-checked ✅.)_
+  - Notes:
+
+- [ ] **UAT-4.2 — Code also on clipboard, auto-clears.** After 4.1, the code is **also copied to the clipboard** with a "One-time code copied" toast, and the clipboard **auto-clears after ~90s** (unless you copy something else first).
+  - Notes:
+
+- [ ] **UAT-4.3 — No TOTP row when the item has none.** On an OTP page for a login whose 1Password item has **no** TOTP, no "Fill one-time code" row appears (nothing to fill).
+  - Notes:
+
+### Cross-cutting / regression
+
+- [ ] **UAT-X.1 — Evo Passwords still works.** Switch the provider dropdown back to **Evo Passwords** → Evo's own Keychain autofill behaves exactly as before (its overlay, per-fill Touch ID). Switch back to 1Password after.
+  - Notes:
+
+- [ ] **UAT-X.2 — Private window: no 1Password autofill.** Open a Private window, go to a login page, focus a field → **no** 1Password overlay.
+  - Notes:
+
+- [ ] **UAT-X.3 — Sidecar reaped on quit.** After using 1Password this session, **quit Evo (⌘Q)**. Then tell me and I'll verify no `evo-op-helper` process lingers (`pgrep -f evo-op-helper` → nothing).
+  - Notes:
+
+**When done:** tell me pass/fail per item with any notes (screenshots welcome). The only one I actively want an answer on is **UAT-2.2** (does the item count settle on the real number, or stay 0?) — everything else is confirmation/regression.

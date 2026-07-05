@@ -7,6 +7,7 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
     case email(PasswordEmailSuggestion)
     case unlockProvider(label: String)
     case fillOneTimeCode(ProviderCredential)
+    case fillCard(ProviderStructuredItem)
 
     var id: String {
         switch self {
@@ -20,6 +21,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return "unlock-\(label)"
         case let .fillOneTimeCode(credential):
             return "totp-\(credential.id)"
+        case let .fillCard(item):
+            return "card-\(item.id)"
         }
     }
 
@@ -35,6 +38,8 @@ enum PasswordAutofillSuggestion: Identifiable, Equatable {
             return ""
         case let .fillOneTimeCode(credential):
             return credential.host
+        case .fillCard:
+            return ""
         }
     }
 }
@@ -45,6 +50,7 @@ struct PasswordAutofillOverlayState: Equatable {
     let emailSuggestions: [PasswordEmailSuggestion]
     let generatedPassword: String?
     let oneTimeCodeCredential: ProviderCredential?
+    let structuredItems: [ProviderStructuredItem]
     let selectedSuggestionIndex: Int
     var lockedProviderLabel: String?
     var isSyncing: Bool = false
@@ -55,6 +61,7 @@ struct PasswordAutofillOverlayState: Equatable {
         emailSuggestions: [PasswordEmailSuggestion],
         generatedPassword: String?,
         oneTimeCodeCredential: ProviderCredential? = nil,
+        structuredItems: [ProviderStructuredItem] = [],
         selectedSuggestionIndex: Int,
         lockedProviderLabel: String? = nil,
         isSyncing: Bool = false
@@ -64,6 +71,7 @@ struct PasswordAutofillOverlayState: Equatable {
         self.emailSuggestions = emailSuggestions
         self.generatedPassword = generatedPassword
         self.oneTimeCodeCredential = oneTimeCodeCredential
+        self.structuredItems = structuredItems
         self.selectedSuggestionIndex = selectedSuggestionIndex
         self.lockedProviderLabel = lockedProviderLabel
         self.isSyncing = isSyncing
@@ -76,6 +84,10 @@ struct PasswordAutofillOverlayState: Equatable {
 
         if let oneTimeCodeCredential {
             return [.fillOneTimeCode(oneTimeCodeCredential)]
+        }
+
+        if focus.fieldKind == .creditCard {
+            return structuredItems.map(PasswordAutofillSuggestion.fillCard)
         }
 
         var items: [PasswordAutofillSuggestion] = []
@@ -241,6 +253,27 @@ final class PasswordAutofillCoordinator {
         }
     }
 
+    func fillStructured(_ item: ProviderStructuredItem, for overlay: PasswordAutofillOverlayState) {
+        Task { [weak self] in
+            guard let self else { return }
+
+            let provider = await self.providers.activeProvider(for: self.settings.passwordManagerProvider)
+            guard let values = try? await provider.fillValues(for: item.ref) else { return }
+
+            await MainActor.run {
+                let entries: [PasswordMultiFillRequest.FieldEntry] = (overlay.focus.fields ?? []).compactMap { field in
+                    guard let value = values[field.purpose] else { return nil }
+                    return PasswordMultiFillRequest.FieldEntry(fieldID: field.fieldID, value: value)
+                }
+                guard !entries.isEmpty else { return }
+
+                let request = PasswordMultiFillRequest(fields: entries, highlightColor: "#E8F5E9")
+                self.evaluate(scriptMethod: "fillFields", payload: request)
+                self.dismissOverlay()
+            }
+        }
+    }
+
     func fillEmailSuggestion(_ suggestion: PasswordEmailSuggestion, for overlay: PasswordAutofillOverlayState) {
         guard overlay.focus.fieldKind == .email else {
             return
@@ -281,6 +314,17 @@ final class PasswordAutofillCoordinator {
         pageURL: URL,
         containerID: UUID?
     ) async -> PasswordAutofillOverlayState {
+        if focus.fieldKind == .creditCard {
+            let cards = await provider.structuredItems(.creditCard)
+            return Self.resolveSuggestions(
+                for: focus,
+                matchingEntries: [],
+                emailSuggestions: [],
+                generatedPassword: nil,
+                structuredItems: cards
+            )
+        }
+
         let matchingEntries = await provider.credentials(for: pageURL, containerID: containerID)
 
         let emailSuggestions: [PasswordEmailSuggestion] = providerKind == .evo
@@ -350,6 +394,7 @@ final class PasswordAutofillCoordinator {
                 || !suggestions.emailSuggestions.isEmpty
                 || suggestions.generatedPassword != nil
                 || suggestions.oneTimeCodeCredential != nil
+                || !suggestions.structuredItems.isEmpty
             else {
                 self.clearAutofillState()
                 return
@@ -418,6 +463,7 @@ final class PasswordAutofillCoordinator {
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
             oneTimeCodeCredential: overlay.oneTimeCodeCredential,
+            structuredItems: overlay.structuredItems,
             selectedSuggestionIndex: overlay.selectedSuggestionIndex,
             lockedProviderLabel: overlay.lockedProviderLabel,
             isSyncing: overlay.isSyncing
@@ -434,6 +480,7 @@ final class PasswordAutofillCoordinator {
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
             oneTimeCodeCredential: overlay.oneTimeCodeCredential,
+            structuredItems: overlay.structuredItems,
             selectedSuggestionIndex: selectionIndex,
             lockedProviderLabel: overlay.lockedProviderLabel,
             isSyncing: overlay.isSyncing
@@ -498,6 +545,8 @@ final class PasswordAutofillCoordinator {
             fillEmailSuggestion(suggestion, for: overlay)
         case let .fillOneTimeCode(credential):
             fillOneTimeCode(credential, for: overlay)
+        case let .fillCard(item):
+            fillStructured(item, for: overlay)
         case .unlockProvider:
             Task { @MainActor [weak self] in
                 self?.unlockActiveProvider()
@@ -565,8 +614,17 @@ final class PasswordAutofillCoordinator {
         for focus: PasswordBridgeFocusPayload,
         matchingEntries: [ProviderCredential],
         emailSuggestions: [PasswordEmailSuggestion],
-        generatedPassword: String?
+        generatedPassword: String?,
+        structuredItems: [ProviderStructuredItem] = []
     ) -> PasswordAutofillOverlayState {
+        if focus.fieldKind == .creditCard {
+            let cards = structuredItems.filter { $0.category == .creditCard }
+            return PasswordAutofillOverlayState(
+                focus: focus, savedPasswordEntries: [], emailSuggestions: [],
+                generatedPassword: nil, structuredItems: cards, selectedSuggestionIndex: 0
+            )
+        }
+
         let savedPasswordEntries: [ProviderCredential]
         let filteredEmailSuggestions: [PasswordEmailSuggestion]
         let filteredGeneratedPassword: String?
@@ -642,6 +700,7 @@ extension PasswordAutofillCoordinator {
             emailSuggestions: suggestions.emailSuggestions,
             generatedPassword: suggestions.generatedPassword,
             oneTimeCodeCredential: suggestions.oneTimeCodeCredential,
+            structuredItems: suggestions.structuredItems,
             selectedSuggestionIndex: suggestions.selectedSuggestionIndex,
             lockedProviderLabel: lockedProviderLabel,
             isSyncing: isSyncing

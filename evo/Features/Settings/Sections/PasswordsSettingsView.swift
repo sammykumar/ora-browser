@@ -113,7 +113,7 @@ struct PasswordsSettingsView: View {
                         || !selectedProvider.usesBuiltInOverlay
                 )
             Toggle("Prompt to save passwords", isOn: $settings.passwordSavePromptsEnabled)
-                .disabled(!settings.passwordsEnabled || !selectedProvider.usesBuiltInVault)
+                .disabled(!settings.passwordsEnabled)
 
             if !selectedProvider.isAvailable {
                 Text("\(selectedProvider.title) is not yet integrated.")

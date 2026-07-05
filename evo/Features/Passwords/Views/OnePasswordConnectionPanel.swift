@@ -13,10 +13,12 @@ struct OnePasswordConnectionPanel: View {
                 itemCount: service.metadata.count
             ))
             .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
 
             ForEach(settings.onePasswordAccounts, id: \.self) { account in
                 HStack {
                     Text(account)
+                        .foregroundStyle(.primary)
                     Spacer()
                     Button(role: .destructive) {
                         settings.removeOnePasswordAccount(account)

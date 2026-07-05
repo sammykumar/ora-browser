@@ -352,11 +352,26 @@ final class BrowserPage: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptM
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+        let method = challenge.protectionSpace.authenticationMethod
+        if method == NSURLAuthenticationMethodServerTrust,
            let serverTrust = challenge.protectionSpace.serverTrust,
            sslBypassedHosts.contains(challenge.protectionSpace.host)
         {
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
+        } else if method == NSURLAuthenticationMethodHTTPBasic
+            || method == NSURLAuthenticationMethodHTTPDigest
+            || method == NSURLAuthenticationMethodNTLM,
+            challenge.previousFailureCount == 0,
+            let delegate
+        {
+            delegate
+                .browserPage(self, didReceiveHTTPAuthChallengeForHost: challenge.protectionSpace.host) { credential in
+                    if let credential {
+                        completionHandler(.useCredential, credential)
+                    } else {
+                        completionHandler(.performDefaultHandling, nil)
+                    }
+                }
         } else {
             completionHandler(.performDefaultHandling, nil)
         }

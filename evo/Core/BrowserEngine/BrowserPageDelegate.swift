@@ -30,6 +30,11 @@ protocol BrowserPageDelegate: AnyObject {
         completion: @escaping (String?) -> Void
     )
     func browserPage(_ page: BrowserPage, didStartDownload download: BrowserDownloadTask)
+    func browserPage(
+        _ page: BrowserPage,
+        didReceiveHTTPAuthChallengeForHost host: String,
+        completion: @escaping (URLCredential?) -> Void
+    )
 }
 
 extension BrowserPageDelegate {
@@ -81,4 +86,12 @@ extension BrowserPageDelegate {
     }
 
     func browserPage(_ page: BrowserPage, didStartDownload download: BrowserDownloadTask) {}
+
+    func browserPage(
+        _ page: BrowserPage,
+        didReceiveHTTPAuthChallengeForHost host: String,
+        completion: @escaping (URLCredential?) -> Void
+    ) {
+        completion(nil)
+    }
 }

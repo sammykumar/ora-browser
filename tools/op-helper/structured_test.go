@@ -125,4 +125,57 @@ func TestExtractFillValuesIdentity(t *testing.T) {
 	if v["country"] != "US" {
 		t.Fatalf("country = %q", v["country"])
 	}
+	if v["fullName"] != "Sam Kumar" {
+		t.Fatalf("fullName = %q, want %q", v["fullName"], "Sam Kumar")
+	}
+}
+
+// TestExtractFillValuesTitleFallback ensures a field whose real 1Password ID doesn't
+// match FIELD_SCHEMA.md's assumed defaults still maps via a title-keyword fallback,
+// so mapTextField degrades gracefully instead of silently dropping the value.
+func TestExtractFillValuesTitleFallback(t *testing.T) {
+	item := onepassword.Item{
+		ID: "id2", VaultID: "v1", Title: "Fallback Identity", Category: onepassword.ItemCategoryIdentity,
+		Fields: []onepassword.ItemField{
+			{ID: "f1", Title: "First Name", FieldType: onepassword.ItemFieldTypeText, Value: "Ada"},
+			{ID: "f2", Title: "Last Name", FieldType: onepassword.ItemFieldTypeText, Value: "Lovelace"},
+			{ID: "f3", Title: "Organization", FieldType: onepassword.ItemFieldTypeText, Value: "Analytical Engines Inc"},
+			{ID: "f4", Title: "Email Address", FieldType: onepassword.ItemFieldTypeText, Value: "ada@example.com"},
+			{ID: "f5", Title: "Mobile Phone", FieldType: onepassword.ItemFieldTypeText, Value: "555-0199"},
+		},
+	}
+	v := extractFillValues(item)
+	if v["givenName"] != "Ada" {
+		t.Fatalf("givenName = %q", v["givenName"])
+	}
+	if v["familyName"] != "Lovelace" {
+		t.Fatalf("familyName = %q", v["familyName"])
+	}
+	if v["organization"] != "Analytical Engines Inc" {
+		t.Fatalf("organization = %q", v["organization"])
+	}
+	if v["email"] != "ada@example.com" {
+		t.Fatalf("email = %q", v["email"])
+	}
+	if v["phone"] != "555-0199" {
+		t.Fatalf("phone = %q", v["phone"])
+	}
+	if v["fullName"] != "Ada Lovelace" {
+		t.Fatalf("fullName = %q", v["fullName"])
+	}
+}
+
+// TestExtractFillValuesCVVCaseInsensitive ensures the CVV field-ID match is
+// case-insensitive, matching mapTextField's lower-casing convention.
+func TestExtractFillValuesCVVCaseInsensitive(t *testing.T) {
+	item := onepassword.Item{
+		ID: "c2", VaultID: "v1", Title: "Uppercase CVV Card", Category: onepassword.ItemCategoryCreditCard,
+		Fields: []onepassword.ItemField{
+			{ID: "CVV", Title: "security code", FieldType: onepassword.ItemFieldTypeConcealed, Value: "789"},
+		},
+	}
+	v := extractFillValues(item)
+	if v["cvv"] != "789" {
+		t.Fatalf("cvv = %q, want %q (case-insensitive ID match)", v["cvv"], "789")
+	}
 }

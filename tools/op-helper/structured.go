@@ -73,7 +73,7 @@ func extractFillValues(item onepassword.Item) map[string]string {
 		case onepassword.ItemFieldTypeCreditCardNumber:
 			out["cardNumber"] = f.Value
 		case onepassword.ItemFieldTypeConcealed:
-			if f.ID == "cvv" || strings.Contains(strings.ToLower(f.Title), "verification") {
+			if strings.ToLower(f.ID) == "cvv" || strings.Contains(strings.ToLower(f.Title), "verification") {
 				out["cvv"] = f.Value
 			}
 		case onepassword.ItemFieldTypeMonthYear:
@@ -98,25 +98,34 @@ func extractFillValues(item onepassword.Item) map[string]string {
 			mapAddressField(f, out)
 		}
 	}
+	if fn := strings.TrimSpace(out["givenName"] + " " + out["familyName"]); fn != "" {
+		out["fullName"] = fn
+	}
 	return out
 }
 
-// mapTextField maps text fields by ID/title to card/identity purposes.
-// IDs come from FIELD_SCHEMA.md; extend as needed.
+// mapTextField maps text fields to card/identity purposes, matching by field ID
+// (FIELD_SCHEMA.md's assumed defaults) or, failing that, a lower-cased title keyword —
+// mirroring itemmap.go's f.ID == "x" || f.Title == "y" convention — so a real vault
+// using different field IDs still degrades gracefully instead of silently dropping
+// the value. Extend as needed.
 func mapTextField(f onepassword.ItemField, out map[string]string) {
 	id := strings.ToLower(f.ID)
-	switch id {
-	case "cardholder":
+	title := strings.ToLower(f.Title)
+	switch {
+	case id == "cardholder" || strings.Contains(title, "cardholder"):
 		out["cardholderName"] = f.Value
-	case "firstname":
+	case id == "firstname" || strings.Contains(title, "first"):
 		out["givenName"] = f.Value
-	case "lastname":
+	case id == "lastname" || strings.Contains(title, "last"):
 		out["familyName"] = f.Value
-	case "company":
+	case id == "company" || strings.Contains(title, "company") || strings.Contains(title, "organization"):
 		out["organization"] = f.Value
-	case "email":
-		out["email"] = f.Value
-	case "defphone", "cellphone", "homephone":
+	case id == "email" || strings.Contains(title, "email"):
+		if out["email"] == "" {
+			out["email"] = f.Value
+		}
+	case id == "defphone" || id == "cellphone" || id == "homephone" || strings.Contains(title, "phone"):
 		if out["phone"] == "" {
 			out["phone"] = f.Value
 		}

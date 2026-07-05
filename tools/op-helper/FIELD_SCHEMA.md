@@ -24,11 +24,14 @@ Notes:
 - `ItemFieldTypeMonthYear` values are stored as `YYYYMM` (e.g. `"202809"` = Sep 2028).
   We derive `expMonth` (`"09"`), `expYear` (`"2028"`), and `expDate` (`"09/28"`) from it.
 - The `cvv` field's `FieldType` is generic `Concealed` (1Password does not have a
-  dedicated CVV field type in this SDK version) — matched by field ID `cvv` or a title
-  containing "verification", mirroring how `itemmap.go`'s `extractLogin` matches
-  `password` by ID/title rather than by a password-specific `FieldType`.
+  dedicated CVV field type in this SDK version) — matched by a case-insensitive field
+  ID `cvv` or a title containing "verification", mirroring how `itemmap.go`'s
+  `extractLogin` matches `password` by ID/title rather than by a password-specific
+  `FieldType`.
 - `ItemFieldTypeCreditCardType` only feeds the metadata `subtitle` (e.g. "Visa"); it is
   not part of the `fillItem` value vocabulary.
+- `cardholderName` also matches on a title containing "cardholder" if the field ID
+  isn't `cardholder` (see the title-keyword fallback note below).
 
 ## Identity (`onepassword.ItemCategoryIdentity`)
 
@@ -39,6 +42,7 @@ Notes:
 | `company`                         | `ItemFieldTypeText`  | `organization`                |
 | `email`                           | `ItemFieldTypeText`  | `email`                       |
 | `defphone` / `cellphone` / `homephone` | `ItemFieldTypeText`  | `phone` (first non-empty one wins) |
+| (derived from `givenName` + `familyName`) | —          | `fullName` (space-joined, trimmed; only set if non-empty) |
 
 Note: `email` may in practice come through the SDK as `ItemFieldTypeEmail` rather than
 `ItemFieldTypeText`, and phone fields may come through as `ItemFieldTypePhone` rather
@@ -48,6 +52,26 @@ fills `email`/`phone` the same way a matching `ItemFieldTypeText` field would (f
 non-empty value wins). This is not exercised by this task's tests because we don't have
 a live vault to confirm which variant 1Password actually emits for identity email/phone
 — confirm at UAT.
+
+### Title-keyword fallback matching
+
+Since the field IDs above are unverified assumptions, `mapTextField` matches each
+purpose by field ID *or*, failing that, a lower-cased title keyword — mirroring
+`itemmap.go`'s `f.ID == "x" || f.Title == "y"` convention (here using `Contains` since
+title text is prose, not a fixed token). This degrades gracefully if a real vault uses
+different field IDs than assumed, instead of silently dropping the value:
+
+| Purpose          | ID match      | Title-keyword fallback (lower-cased `Contains`) |
+|-------------------|----------------|---------------------------------------------------|
+| `cardholderName`   | `cardholder`   | "cardholder"                                        |
+| `givenName`        | `firstname`    | "first"                                             |
+| `familyName`       | `lastname`     | "last"                                              |
+| `organization`     | `company`      | "company" or "organization"                         |
+| `email`            | `email`        | "email"                                             |
+| `phone`            | `defphone` / `cellphone` / `homephone` | "phone" (first non-empty wins, same as ID match) |
+
+`email` is also guarded to first-non-empty (won't override a value already set by an
+`ItemFieldTypeEmail` field), matching the phone purposes' existing first-wins rule.
 
 ### Address
 

@@ -174,13 +174,67 @@ fill/highlight JS, auto-submit — is reused unchanged.
 
 ## Out of scope (explicit decisions, not omissions)
 
-- **Passkeys** — different macOS plumbing entirely (`ASAuthorization` / credential provider);
-  future project.
+- **Passkeys** — different macOS plumbing entirely (native WKWebView WebAuthn via an
+  Apple-restricted entitlement, not the sidecar). **No longer deferred** — now an active ship
+  blocker, scoped in its own spec: `2026-07-05-passkey-support-design.md`. See the gap analysis
+  below.
 - **Identities / credit-card autofill** — logins only.
 - **Item management UI in Evo** — viewing/editing items happens in the 1Password app; Evo is a
   consumer (fill + save only).
 - **Bitwarden** — the registry placeholder stays commented out; the `PasswordProvider` protocol
   is the seam it would use later.
+
+## Gap analysis vs. the 1Password Chrome extension (2026-07-05)
+
+Derived from reading the 1Password Chrome extension source (v8.12.26.40, at
+`~/Library/Application Support/Arc/User Data/Default/Extensions/aeblfdkhhhdcdjpifhhbdiojplfjncoa`).
+The extension is a full password-manager client: a ~2.7MB service worker brokering to the
+1Password **desktop app over `nativeMessaging`** (the same broker model as our Go sidecar —
+biometric unlock lives in the desktop app), a ~190KB field-detection **heuristics engine**,
+inline field-attached UI (menu / save-notification / modal / universal-sign-on), and
+all-frames page-injected content scripts.
+
+**Purpose of this table:** capture the full surface so Sam can set build priority for parity.
+The **Priority** column is intentionally blank — to be filled in by the user.
+
+### Parity — Evo already matches
+| Capability | Evidence in extension | Evo today |
+|---|---|---|
+| Login fill (username/password), biometric-brokered | nativeMessaging ↔ desktop app | ✅ sidecar, same broker model |
+| TOTP fill | `totp` / `one-time` codes | ✅ Slice 4 |
+| Save / update login prompts | `SaveLogin` / prompt-save | ✅ Slice 3 (create + update, dedupe by username) |
+| Multi-account | `accounts` throughout | ✅ one process per account |
+| Password generation | `generatePassword` | ✅ generated-password suggestion |
+| URL / subdomain matching | — | ✅ `hostsMatch` |
+
+### Gaps — in the extension, missing/weaker in Evo
+| # | Capability | Extension evidence | Evo today | Category | Scope note | Priority |
+|---|---|---|---|---|---|---|
+| 1 | **Passkeys / WebAuthn** | `passkey`×504, `webauthn`×379; injects its *own* `navigator.credentials` shim (`webauthn.js` + MAIN-world listeners) brokering to the desktop app | ❌ none | **Ship blocker** | Evo's path is *simpler* — native WKWebView WebAuthn via the `com.apple.developer.web-browser.public-key-credential` entitlement; the OS routes to 1Password-as-provider. We do **not** replicate their shim. See `2026-07-05-passkey-support-design.md`. | _(user)_ |
+| 2 | **Credit-card fill** | `creditCard`×123 | ❌ logins only | Autofill breadth | Needs sidecar item-type support + bridge detection for card fields. | _(user)_ |
+| 3 | **Identity / address fill** | `identity`×249, `address`×315 | ❌ | Autofill breadth | Same shape as #2 (new item types + field heuristics). | _(user)_ |
+| 4 | **SSH key** | `sshKey`×47 | ❌ | Dev workflow | 1Password's SSH agent is separate from the browser; low browser relevance. | _(user)_ |
+| 5 | **HTTP Basic-auth fill** | `webRequestAuthProvider` / `onAuthRequired` | ❌ | Autofill breadth | WKWebView exposes this via `didReceive challenge`; no Chrome-extension equivalent needed. | _(user)_ |
+| 6 | **Watchtower** (breach / compromised-password checks) | `watchtower`×371, `api.pwnedpasswords.com` in CSP | ❌ | Security hygiene | Standalone feature; independent of fill path. | _(user)_ |
+| 7 | **Masked email** (Fastmail aliases) | `maskedEmail` / `fastmail`×70 | ❌ | Convenience | Requires Fastmail account + provider API. | _(user)_ |
+| 8 | **Universal Sign-On / SSO** | `universalSignOn`×68 | ❌ | Enterprise | Sign into 1Password itself via IdP; not autofill. | _(user)_ |
+| 9 | **Secure remote autofill** (cross-device pairing) | director.ai pairing scripts | ❌ | Edge | Cross-device; out of scope for a single-user desktop tool. | _(user)_ |
+| 10 | **Kolide device-trust**, context-menu fill, downloads/notifications surfaces | manifest permissions + `kolide.js` | ❌ | Enterprise / polish | Kolide is enterprise-only; context-menu fill is minor polish. | _(user)_ |
+
+### Partial — Evo has a weaker version
+| Capability | Extension | Evo today |
+|---|---|---|
+| Field detection | ~190KB heuristics engine, all frames, multi-step forms | Lean `password-manager.js` on password/OTP/email-or-username inputs — adequate for our scope, less robust on exotic/iframe/multi-step forms |
+| Inline UI | Menu attached to the focused field + save/modal notifications | Single overlay — functionally close for fill, less rich |
+| Auto-submit after fill | `autoSubmit` present | Not implemented |
+
+### Recommended read (author's take, non-binding)
+Ship-relevant gaps are **#1 passkeys** (already the active blocker, via a genuinely simpler
+native path than the extension's shim) and, if broader autofill parity is wanted later,
+**#2 credit-card / #3 identity** fill. Items #4–#10 are enterprise/edge/hygiene features that
+a personal, single-user tool can reasonably skip. Field-detection robustness (Partial) is the
+most likely source of real-world friction and is worth incremental hardening independent of
+new item types.
 
 ## Error handling
 

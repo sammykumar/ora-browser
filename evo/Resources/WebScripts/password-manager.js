@@ -156,6 +156,9 @@
             if (isOneTimeCodeField(element)) {
                 return { action: "login", usernameField: null, passwordFields: [], oneTimeCode: true };
             }
+            if (isUsernameField(element) || element.type === "email") {
+                return { action: "login", usernameField: element, passwordFields: [] };
+            }
             return null;
         }
 

@@ -144,11 +144,31 @@ final class OnePasswordService: ObservableObject {
         }
     }
 
+    /// Mirrors 1Password's "any page on this website" host matching: an exact match, or a
+    /// subdomain match in either direction (`accounts.google.com` <-> `google.com`).
+    ///
+    /// The parent (shorter) host in a subdomain match must contain at least one dot — this
+    /// blocks a bare public suffix like "com" from ever matching, which would otherwise let
+    /// `github.com` match a credential saved under "com" or let unrelated `*.com` sites
+    /// cross-match each other. This is a coarse safeguard, not full public-suffix-list logic,
+    /// but it's sufficient to keep obvious lookalikes (`evil.com`, `notgithub.com`,
+    /// `github.com.evil.com`) from matching `github.com`.
+    static func hostsMatch(pageHost: String, credentialHost: String) -> Bool {
+        guard !pageHost.isEmpty, !credentialHost.isEmpty else { return false }
+        if pageHost == credentialHost { return true }
+        // Subdomain match in either direction (accounts.google.com <-> google.com).
+        // Require the shorter (parent) host to have at least 2 labels (a dot) so a bare
+        // public suffix like "com" can never match — prevents cross-site over-match.
+        if pageHost.hasSuffix("." + credentialHost), credentialHost.contains(".") { return true }
+        if credentialHost.hasSuffix("." + pageHost), pageHost.contains(".") { return true }
+        return false
+    }
+
     func credentials(for url: URL) -> [ProviderCredential] {
         guard let rawHost = url.host else { return [] }
         let host = PasswordManagerService.normalizeHost(rawHost)
         return metadata.filter { credential in
-            PasswordManagerService.normalizeHost(credential.host) == host
+            Self.hostsMatch(pageHost: host, credentialHost: PasswordManagerService.normalizeHost(credential.host))
         }
     }
 

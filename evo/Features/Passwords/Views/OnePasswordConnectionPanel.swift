@@ -38,7 +38,7 @@ struct OnePasswordConnectionPanel: View {
                 }
             }
 
-            EvoButton(label: "Reconnect", variant: .outline, leadingIcon: "arrow.clockwise") {
+            EvoButton(label: "Reconnect", variant: .secondary, leadingIcon: "arrow.clockwise") {
                 reconfigure()
             }
         }

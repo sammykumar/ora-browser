@@ -11,6 +11,8 @@ enum PasswordAutofillFieldKind: String, Codable {
     case password
     case username
     case oneTimeCode
+    case creditCard
+    case identity
 }
 
 enum PasswordAutofillKeyCommand: String, Codable {
@@ -38,6 +40,11 @@ struct PasswordBridgeRect: Codable, Equatable {
     }
 }
 
+struct PasswordBridgeField: Codable, Equatable {
+    let fieldID: String
+    let purpose: FieldPurpose
+}
+
 struct PasswordBridgeFocusPayload: Codable, Equatable {
     let fieldID: String
     let hostname: String
@@ -45,7 +52,49 @@ struct PasswordBridgeFocusPayload: Codable, Equatable {
     let fieldKind: PasswordAutofillFieldKind
     let usernameFieldID: String?
     let passwordFieldIDs: [String]
+    let fields: [PasswordBridgeField]?
     let rect: PasswordBridgeRect
+
+    init(
+        fieldID: String,
+        hostname: String,
+        action: PasswordFormAction,
+        fieldKind: PasswordAutofillFieldKind,
+        usernameFieldID: String?,
+        passwordFieldIDs: [String],
+        fields: [PasswordBridgeField]? = nil,
+        rect: PasswordBridgeRect
+    ) {
+        self.fieldID = fieldID
+        self.hostname = hostname
+        self.action = action
+        self.fieldKind = fieldKind
+        self.usernameFieldID = usernameFieldID
+        self.passwordFieldIDs = passwordFieldIDs
+        self.fields = fields
+        self.rect = rect
+    }
+
+    private func copy(hostname: String? = nil, rect: PasswordBridgeRect? = nil) -> PasswordBridgeFocusPayload {
+        PasswordBridgeFocusPayload(
+            fieldID: fieldID,
+            hostname: hostname ?? self.hostname,
+            action: action,
+            fieldKind: fieldKind,
+            usernameFieldID: usernameFieldID,
+            passwordFieldIDs: passwordFieldIDs,
+            fields: fields,
+            rect: rect ?? self.rect
+        )
+    }
+
+    func withRect(_ newRect: PasswordBridgeRect) -> PasswordBridgeFocusPayload {
+        copy(rect: newRect)
+    }
+
+    func withHostname(_ newHostname: String) -> PasswordBridgeFocusPayload {
+        copy(hostname: newHostname)
+    }
 }
 
 struct PasswordBridgeSubmitPayload: Codable, Equatable {
@@ -71,6 +120,16 @@ struct PasswordFillRequest: Codable {
     let password: String
     let highlightColor: String
     let submitAfterFill: Bool
+}
+
+struct PasswordMultiFillRequest: Codable {
+    struct FieldEntry: Codable {
+        let fieldID: String
+        let value: String
+    }
+
+    let fields: [FieldEntry]
+    let highlightColor: String
 }
 
 enum PasswordAutofillSuggestion: Identifiable, Equatable {
@@ -485,15 +544,7 @@ final class PasswordAutofillCoordinator {
         updatingRectTo rect: PasswordBridgeRect
     ) -> PasswordAutofillOverlayState {
         PasswordAutofillOverlayState(
-            focus: PasswordBridgeFocusPayload(
-                fieldID: overlay.focus.fieldID,
-                hostname: overlay.focus.hostname,
-                action: overlay.focus.action,
-                fieldKind: overlay.focus.fieldKind,
-                usernameFieldID: overlay.focus.usernameFieldID,
-                passwordFieldIDs: overlay.focus.passwordFieldIDs,
-                rect: rect
-            ),
+            focus: overlay.focus.withRect(rect),
             savedPasswordEntries: overlay.savedPasswordEntries,
             emailSuggestions: overlay.emailSuggestions,
             generatedPassword: overlay.generatedPassword,
@@ -673,6 +724,12 @@ final class PasswordAutofillCoordinator {
             filteredEmailSuggestions = []
             filteredGeneratedPassword = nil
             oneTimeCodeCredential = nil
+        case (.createAccount, .creditCard), (.createAccount, .identity):
+            // Card/identity overlay routing lands in a later slice; no suggestions yet.
+            savedPasswordEntries = []
+            filteredEmailSuggestions = []
+            filteredGeneratedPassword = nil
+            oneTimeCodeCredential = nil
         case (.login, .oneTimeCode):
             // Only credentials with a saved TOTP secret are relevant to an OTP field.
             // Surface the first match as a single "Fill one-time code" suggestion rather than
@@ -711,15 +768,7 @@ extension PasswordAutofillCoordinator {
         isSyncing: Bool = false
     ) -> PasswordAutofillOverlayState {
         PasswordAutofillOverlayState(
-            focus: PasswordBridgeFocusPayload(
-                fieldID: focus.fieldID,
-                hostname: normalizedHost,
-                action: focus.action,
-                fieldKind: focus.fieldKind,
-                usernameFieldID: focus.usernameFieldID,
-                passwordFieldIDs: focus.passwordFieldIDs,
-                rect: focus.rect
-            ),
+            focus: focus.withHostname(normalizedHost),
             savedPasswordEntries: suggestions.savedPasswordEntries,
             emailSuggestions: suggestions.emailSuggestions,
             generatedPassword: suggestions.generatedPassword,

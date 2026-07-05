@@ -83,6 +83,47 @@
             || element.autocomplete === "username";
     }
 
+    const AUTOCOMPLETE_PURPOSE = {
+        "cc-name": "cardholderName", "cc-number": "cardNumber", "cc-exp": "expDate",
+        "cc-exp-month": "expMonth", "cc-exp-year": "expYear", "cc-csc": "cvv",
+        "given-name": "givenName", "family-name": "familyName", "name": "fullName",
+        "street-address": "addressLine1", "address-line1": "addressLine1", "address-line2": "addressLine2",
+        "address-level2": "city", "address-level1": "state", "postal-code": "postalCode",
+        "country": "country", "country-name": "country", "tel": "phone", "email": "email",
+        "organization": "organization"
+    };
+
+    function tokenPurpose(element) {
+        const ac = (element.autocomplete || "").toLowerCase().trim();
+        // autocomplete may be "section-foo shipping cc-number"; take the last known token.
+        const parts = ac.split(/\s+/);
+        for (let i = parts.length - 1; i >= 0; i--) {
+            if (AUTOCOMPLETE_PURPOSE[parts[i]]) return AUTOCOMPLETE_PURPOSE[parts[i]];
+        }
+        return regexPurpose(element);
+    }
+
+    function regexPurpose(element) {
+        const hay = [element.name, element.id, element.placeholder, element.getAttribute("aria-label")]
+            .filter(Boolean).join(" ").toLowerCase();
+        if (/card.?number|ccnum|cardnum/.test(hay)) return "cardNumber";
+        if (/(^|[^a-z])(cvv|cvc|csc)([^a-z]|$)/.test(hay)) return "cvv";
+        if (/exp.*month/.test(hay)) return "expMonth";
+        if (/exp.*year/.test(hay)) return "expYear";
+        if (/expir/.test(hay)) return "expDate";
+        if (/cardholder|name.*card/.test(hay)) return "cardholderName";
+        if (/postal|zip/.test(hay)) return "postalCode";
+        if (/address.*1|street/.test(hay)) return "addressLine1";
+        return null;
+    }
+
+    const CARD_PURPOSES = new Set(["cardholderName", "cardNumber", "expMonth", "expYear", "expDate", "cvv"]);
+
+    function purposeGroupKind(purpose) {
+        if (!purpose) return null;
+        return CARD_PURPOSES.has(purpose) ? "creditCard" : "identity";
+    }
+
     function isOneTimeCodeField(element) {
         if (!(element instanceof HTMLInputElement)) {
             return false;
@@ -121,6 +162,12 @@
 
         if (isOneTimeCodeField(element)) {
             return "oneTimeCode";
+        }
+
+        const purpose = tokenPurpose(element);
+        const groupKind = purposeGroupKind(purpose);
+        if (groupKind) {
+            return groupKind; // "creditCard" | "identity"
         }
 
         return null;
@@ -178,6 +225,20 @@
         };
     }
 
+    function structuredGroupFor(element, groupKind) {
+        const scope = element.form || element.closest("form") || document;
+        const fields = [];
+        Array.from(scope.querySelectorAll("input"))
+            .filter(isRelevantInput).filter(isVisible)
+            .forEach((input) => {
+                const purpose = tokenPurpose(input);
+                if (purpose && purposeGroupKind(purpose) === groupKind) {
+                    fields.push({ fieldID: ensureFieldID(input), purpose });
+                }
+            });
+        return fields;
+    }
+
     function rectPayload(element) {
         const rect = element.getBoundingClientRect();
         return {
@@ -189,13 +250,26 @@
     }
 
     function focusPayload(element) {
-        const group = relevantFieldsFor(element);
-        if (!group) {
+        const fieldKind = fieldKindFor(element);
+        if (!fieldKind) {
             return null;
         }
 
-        const fieldKind = fieldKindFor(element);
-        if (!fieldKind) {
+        if (fieldKind === "creditCard" || fieldKind === "identity") {
+            return {
+                fieldID: ensureFieldID(element),
+                hostname: window.location.hostname,
+                action: "login",
+                fieldKind,
+                usernameFieldID: null,
+                passwordFieldIDs: [],
+                fields: structuredGroupFor(element, fieldKind),
+                rect: rectPayload(element)
+            };
+        }
+
+        const group = relevantFieldsFor(element);
+        if (!group) {
             return null;
         }
 
@@ -426,6 +500,16 @@
             overlayKeyboardNavigationState.active = typeof payload === "string"
                 ? JSON.parse(payload)
                 : Boolean(payload);
+        },
+        fillFields(payload) {
+            const request = typeof payload === "string" ? JSON.parse(payload) : payload;
+            const highlightColor = request.highlightColor || "#E8F5E9";
+            (request.fields || []).forEach((entry) => {
+                const el = fieldByID(entry.fieldID);
+                if (el && typeof entry.value === "string") {
+                    fillField(el, entry.value, highlightColor);
+                }
+            });
         }
     };
 

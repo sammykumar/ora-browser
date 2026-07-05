@@ -35,6 +35,11 @@ struct OneTimeCodeDecodeTests {
             generatedPassword: nil
         )
 
-        #expect(state.savedPasswordEntries.map(\.id) == ["i1"])
+        // A one-time-code focus surfaces the matched TOTP-bearing credential as a
+        // dedicated "fill one-time code" row (not an ordinary saved-credential row),
+        // and the non-TOTP credential is excluded.
+        #expect(state.oneTimeCodeCredential?.id == "i1")
+        #expect(state.savedPasswordEntries.isEmpty)
+        #expect(state.suggestions.map(\.id) == ["totp-i1"])
     }
 }

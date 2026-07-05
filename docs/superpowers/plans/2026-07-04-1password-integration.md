@@ -3519,10 +3519,10 @@ git commit -m "feat(passwords): timed sensitive-clipboard clear for one-time cod
 
 ### Slice 2 — Multi-account + settings panel
 
-- [ ] **UAT-2.1 — Configure via the settings UI (replaces the old debug hack).** Settings → Passwords → set the **provider dropdown to "1Password"** → in the connection panel, type `my.1password.com` → **Add** → approve the Touch ID prompt. **Expected:** the account appears in the list; status line goes "Syncing…" then **"Connected · 1 account · N items"**. _(Spot-checked 2026-07-04 ✅.)_
+- [x] **UAT-2.1 — Configure via the settings UI (replaces the old debug hack).** Settings → Passwords → set the **provider dropdown to "1Password"** → in the connection panel, type `my.1password.com` → **Add** → approve the Touch ID prompt. **Expected:** the account appears in the list; status line goes "Syncing…" then **"Connected · 1 account · N items"**. _(Spot-checked 2026-07-04 ✅.)_
   - Notes:
 
-- [ ] **UAT-2.2 — Item count is real, not 0.** After the sync in 2.1 finishes, the status line shows your **actual item count** (~558 for the personal account), not "0 items". _(Open question from 2026-07-04 — the "0 items" seen then may have been captured mid-sync; confirm it settles on the real count. If it STAYS 0, that's a real bug — flag it.)_
+- [x] **UAT-2.2 — Item count is real, not 0.** After the sync in 2.1 finishes, the status line shows your **actual item count** (~558 for the personal account), not "0 items". _(Open question from 2026-07-04 — the "0 items" seen then may have been captured mid-sync; confirm it settles on the real count. If it STAYS 0, that's a real bug — flag it.)_
   - Notes:
 
 - [ ] **UAT-2.3 — Account badge.** On a login page with a match, the overlay suggestion row shows the small **account badge** (e.g. `my`). _(Spot-checked ✅.)_

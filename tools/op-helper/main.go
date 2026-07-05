@@ -16,6 +16,8 @@ type opClient interface {
 	revealItem(ctx context.Context, vaultID, itemID string) (username, password string, err error)
 	totp(ctx context.Context, vaultID, itemID string) (string, error)
 	saveItem(ctx context.Context, p saveParams) (itemID, vaultID string, err error)
+	listStructured(ctx context.Context, vaultID string) ([]structuredDTO, error)
+	fillItem(ctx context.Context, vaultID, itemID string) (map[string]string, error)
 }
 
 func handle(ctx context.Context, c opClient, req request) response {
@@ -73,6 +75,20 @@ func handle(ctx context.Context, c opClient, req request) response {
 			return fail(req.ID, code, msg)
 		}
 		return ok(req.ID, map[string]interface{}{"id": id, "vaultId": vaultID})
+	case "listStructured":
+		items, err := gatherStructured(ctx, c)
+		if err != nil {
+			code, msg := mapSDKError(err)
+			return fail(req.ID, code, msg)
+		}
+		return ok(req.ID, map[string]interface{}{"items": items})
+	case "fillItem":
+		values, err := c.fillItem(ctx, str(req.Params, "vaultId"), str(req.Params, "itemId"))
+		if err != nil {
+			code, msg := mapSDKError(err)
+			return fail(req.ID, code, msg)
+		}
+		return ok(req.ID, map[string]interface{}{"values": values})
 	default:
 		return fail(req.ID, "internal", "unknown method: "+req.Method)
 	}
@@ -87,6 +103,23 @@ func gatherItems(ctx context.Context, c opClient) ([]itemDTO, error) {
 	var out []itemDTO
 	for _, v := range vaults {
 		items, err := c.listItems(ctx, v.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+	}
+	return out, nil
+}
+
+// gatherStructured lists every vault's active card/identity items as secret-free metadata.
+func gatherStructured(ctx context.Context, c opClient) ([]structuredDTO, error) {
+	vaults, err := c.listVaults(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []structuredDTO
+	for _, v := range vaults {
+		items, err := c.listStructured(ctx, v.ID)
 		if err != nil {
 			return nil, err
 		}

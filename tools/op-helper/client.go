@@ -108,3 +108,43 @@ func (s *sdkClient) saveItem(ctx context.Context, p saveParams) (string, string,
 	}
 	return updated.ID, updated.VaultID, nil
 }
+
+func (s *sdkClient) listStructured(ctx context.Context, vaultID string) ([]structuredDTO, error) {
+	overviews, err := s.client.Items().List(ctx, vaultID,
+		onepassword.NewItemListFilterTypeVariantByState(
+			&onepassword.ItemListFilterByStateInner{Active: true, Archived: false}))
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, ov := range overviews {
+		if ov.Category == onepassword.ItemCategoryCreditCard || ov.Category == onepassword.ItemCategoryIdentity {
+			ids = append(ids, ov.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	out := make([]structuredDTO, 0, len(ids))
+	for _, chunk := range chunkIDs(ids, getAllBatchLimit) {
+		batch, err := s.client.Items().GetAll(ctx, vaultID, chunk)
+		if err != nil {
+			return nil, err
+		}
+		for _, res := range batch.IndividualResponses {
+			if res.Content == nil {
+				continue
+			}
+			out = append(out, itemToStructured(vaultID, *res.Content))
+		}
+	}
+	return out, nil
+}
+
+func (s *sdkClient) fillItem(ctx context.Context, vaultID, itemID string) (map[string]string, error) {
+	item, err := s.client.Items().Get(ctx, vaultID, itemID)
+	if err != nil {
+		return nil, err
+	}
+	return extractFillValues(item), nil
+}

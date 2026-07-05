@@ -39,6 +39,15 @@ type itemDTO struct {
 	HasTotp  bool     `json:"hasTotp"`
 }
 
+// structuredDTO is secret-free metadata for a CreditCard or Identity item.
+type structuredDTO struct {
+	ID       string `json:"id"`
+	VaultID  string `json:"vaultId"`
+	Category string `json:"category"` // "creditCard" | "identity"
+	Title    string `json:"title"`
+	Subtitle string `json:"subtitle"` // e.g. "Visa ····1234" or "Sam Kumar" — NEVER full PAN/CVV
+}
+
 type saveParams struct {
 	VaultID  string
 	ItemID   string

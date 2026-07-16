@@ -8,6 +8,7 @@
         static let shared = DebugHarnessServer()
 
         private static let log = Logger(subsystem: "com.skproductions.evobrowser", category: "DebugHarness")
+        private static let maxRequestBytes = 1_048_576
         private let queue = DispatchQueue(label: "evo.debug-harness")
         private var listener: NWListener?
         private(set) var token: String = ""
@@ -69,6 +70,10 @@
                     var buffer = accumulated
                     if let data {
                         buffer.append(data)
+                    }
+                    if buffer.count > Self.maxRequestBytes {
+                        self.send(HarnessHTTPResponse.error("request too large", status: 400), on: connection)
+                        return
                     }
                     if error != nil {
                         connection.cancel()

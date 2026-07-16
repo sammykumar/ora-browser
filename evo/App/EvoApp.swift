@@ -31,12 +31,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func getWindow() -> NSWindow? {
-        if let key = NSApp.keyWindow {
-            return key
-        }
-        if let visible = NSApp.windows.first(where: { $0.isVisible }) {
-            return visible
-        }
+        if let key = NSApp.keyWindow { return key }
+        if let visible = NSApp.windows.first(where: { $0.isVisible }) { return visible }
         if let any = NSApp.windows.first {
             any.makeKeyAndOrderFront(nil)
             return any

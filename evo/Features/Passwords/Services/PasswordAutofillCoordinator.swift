@@ -509,7 +509,7 @@ final class PasswordAutofillCoordinator {
         evaluate(scriptMethod: "setOverlayKeyboardActive", payload: isActive)
     }
 
-    private func handleKeyCommand(_ command: PasswordAutofillKeyCommand) {
+    func handleKeyCommand(_ command: PasswordAutofillKeyCommand) {
         switch command {
         case .moveUp:
             moveSelection(by: -1)

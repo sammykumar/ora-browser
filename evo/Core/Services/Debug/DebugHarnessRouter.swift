@@ -109,79 +109,16 @@
         static func route(_ request: HarnessHTTPRequest) async -> HarnessHTTPResponse {
             switch (request.method, request.path) {
             case ("GET", "/health"):
-                return HarnessHTTPResponse.json([
-                    "ok": true,
-                    "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                    "pid": Int(ProcessInfo.processInfo.processIdentifier)
-                ])
+                return handleHealth()
 
             case ("GET", "/windows"):
-                let windows = DebugHarnessRegistry.shared.snapshots().map { snapshot -> [String: Any] in
-                    let tabCount = liveContainers(for: snapshot.tabManager).reduce(0) { $0 + $1.tabs.count }
-                    return [
-                        "windowID": snapshot.id.uuidString,
-                        "isPrivate": snapshot.isPrivate,
-                        "tabCount": tabCount
-                    ]
-                }
-                return HarnessHTTPResponse.json(windows)
+                return handleWindows()
 
             case ("GET", "/tabs"):
-                var snapshots = DebugHarnessRegistry.shared.snapshots()
-                if let windowRaw = request.query["window"] {
-                    guard let windowID = UUID(uuidString: windowRaw) else {
-                        return HarnessHTTPResponse.error("bad window id", status: 400)
-                    }
-                    snapshots = snapshots.filter { $0.id == windowID }
-                }
-                var tabs: [[String: Any]] = []
-                for snapshot in snapshots {
-                    for container in liveContainers(for: snapshot.tabManager) {
-                        for tab in container.tabs {
-                            tabs.append([
-                                "tabID": tab.id.uuidString,
-                                "windowID": snapshot.id.uuidString,
-                                "url": tab.url.absoluteString,
-                                "title": tab.title,
-                                "isActive": tab.id == snapshot.tabManager.activeTab?.id
-                            ])
-                        }
-                    }
-                }
-                return HarnessHTTPResponse.json(tabs)
+                return handleTabs(request)
 
             case ("POST", "/navigate"):
-                guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
-                      let urlString = payload["url"] as? String,
-                      let url = URL(string: urlString)
-                else {
-                    return HarnessHTTPResponse.error("body must be {\"url\": \"...\"}", status: 400)
-                }
-                if let tabRaw = payload["tabID"] as? String {
-                    guard let tabID = UUID(uuidString: tabRaw),
-                          let found = DebugHarnessRegistry.shared.findTab(tabID)
-                    else {
-                        return HarnessHTTPResponse.error("unknown tab", status: 404)
-                    }
-                    let escaped = url.absoluteString
-                        .replacingOccurrences(of: "\\", with: "\\\\")
-                        .replacingOccurrences(of: "'", with: "\\'")
-                    found.tab.browserPage?.evaluateJavaScript("location.assign('\(escaped)')")
-                    return HarnessHTTPResponse.json(["tabID": found.tab.id.uuidString])
-                }
-                guard let snapshot = DebugHarnessRegistry.shared.snapshots().first else {
-                    return HarnessHTTPResponse.error("no windows registered", status: 404)
-                }
-                let newTab = snapshot.tabManager.openTab(
-                    url: url,
-                    historyManager: snapshot.historyManager,
-                    focusAfterOpening: true,
-                    isPrivate: snapshot.isPrivate
-                )
-                guard let newTab else {
-                    return HarnessHTTPResponse.error("openTab returned nil (no active container?)", status: 500)
-                }
-                return HarnessHTTPResponse.json(["tabID": newTab.id.uuidString])
+                return handleNavigate(request)
 
             case ("POST", "/eval"):
                 return await handleEval(request)
@@ -189,9 +126,103 @@
             case ("POST", "/screenshot"):
                 return await handleScreenshot(request)
 
+            case ("GET", "/overlay"):
+                return handleOverlay(request)
+
+            case ("POST", "/keypress"):
+                return handleKeypress(request)
+
+            case ("GET", "/provider"):
+                return handleGetProvider()
+
+            case ("POST", "/provider"):
+                return handleSetProvider(request)
+
             default:
                 return HarnessHTTPResponse.error("no route for \(request.method) \(request.path)", status: 404)
             }
+        }
+
+        private static func handleHealth() -> HarnessHTTPResponse {
+            HarnessHTTPResponse.json([
+                "ok": true,
+                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+                "pid": Int(ProcessInfo.processInfo.processIdentifier)
+            ])
+        }
+
+        @MainActor
+        private static func handleWindows() -> HarnessHTTPResponse {
+            let windows = DebugHarnessRegistry.shared.snapshots().map { snapshot -> [String: Any] in
+                let tabCount = liveContainers(for: snapshot.tabManager).reduce(0) { $0 + $1.tabs.count }
+                return [
+                    "windowID": snapshot.id.uuidString,
+                    "isPrivate": snapshot.isPrivate,
+                    "tabCount": tabCount
+                ]
+            }
+            return HarnessHTTPResponse.json(windows)
+        }
+
+        @MainActor
+        private static func handleTabs(_ request: HarnessHTTPRequest) -> HarnessHTTPResponse {
+            var snapshots = DebugHarnessRegistry.shared.snapshots()
+            if let windowRaw = request.query["window"] {
+                guard let windowID = UUID(uuidString: windowRaw) else {
+                    return HarnessHTTPResponse.error("bad window id", status: 400)
+                }
+                snapshots = snapshots.filter { $0.id == windowID }
+            }
+            var tabs: [[String: Any]] = []
+            for snapshot in snapshots {
+                for container in liveContainers(for: snapshot.tabManager) {
+                    for tab in container.tabs {
+                        tabs.append([
+                            "tabID": tab.id.uuidString,
+                            "windowID": snapshot.id.uuidString,
+                            "url": tab.url.absoluteString,
+                            "title": tab.title,
+                            "isActive": tab.id == snapshot.tabManager.activeTab?.id
+                        ])
+                    }
+                }
+            }
+            return HarnessHTTPResponse.json(tabs)
+        }
+
+        @MainActor
+        private static func handleNavigate(_ request: HarnessHTTPRequest) -> HarnessHTTPResponse {
+            guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                  let urlString = payload["url"] as? String,
+                  let url = URL(string: urlString)
+            else {
+                return HarnessHTTPResponse.error("body must be {\"url\": \"...\"}", status: 400)
+            }
+            if let tabRaw = payload["tabID"] as? String {
+                guard let tabID = UUID(uuidString: tabRaw),
+                      let found = DebugHarnessRegistry.shared.findTab(tabID)
+                else {
+                    return HarnessHTTPResponse.error("unknown tab", status: 404)
+                }
+                let escaped = url.absoluteString
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                found.tab.browserPage?.evaluateJavaScript("location.assign('\(escaped)')")
+                return HarnessHTTPResponse.json(["tabID": found.tab.id.uuidString])
+            }
+            guard let snapshot = DebugHarnessRegistry.shared.snapshots().first else {
+                return HarnessHTTPResponse.error("no windows registered", status: 404)
+            }
+            let newTab = snapshot.tabManager.openTab(
+                url: url,
+                historyManager: snapshot.historyManager,
+                focusAfterOpening: true,
+                isPrivate: snapshot.isPrivate
+            )
+            guard let newTab else {
+                return HarnessHTTPResponse.error("openTab returned nil (no active container?)", status: 500)
+            }
+            return HarnessHTTPResponse.json(["tabID": newTab.id.uuidString])
         }
 
         @MainActor
@@ -303,6 +334,91 @@
                 "width": Int(rep.pixelsWide),
                 "height": Int(rep.pixelsHigh)
             ])
+        }
+
+        @MainActor
+        private static func handleOverlay(_ request: HarnessHTTPRequest) -> HarnessHTTPResponse {
+            guard let tabRaw = request.query["tab"], let tabID = UUID(uuidString: tabRaw) else {
+                return HarnessHTTPResponse.error("query must include ?tab=<uuid>", status: 400)
+            }
+            guard let found = DebugHarnessRegistry.shared.findTab(tabID) else {
+                return HarnessHTTPResponse.error("unknown tab", status: 404)
+            }
+            guard let overlay = found.tab.passwordOverlayState else {
+                return HarnessHTTPResponse.json(["visible": false, "rows": [[String: Any]]()])
+            }
+            let rows: [[String: Any]] = overlay.suggestions.map { suggestion in
+                let (label, detail): (String, String)
+                switch suggestion {
+                case let .generatedPassword(host, _):
+                    (label, detail) = ("Generated password", host)
+                case let .savedCredential(credential):
+                    (label, detail) = (credential.title, credential.displayUsername)
+                case let .email(emailSuggestion):
+                    (label, detail) = (emailSuggestion.email, "email")
+                case let .unlockProvider(providerLabel):
+                    (label, detail) = ("Unlock \(providerLabel)", "locked")
+                case let .fillOneTimeCode(credential):
+                    (label, detail) = ("One-time code", credential.displayUsername)
+                case let .fillCard(item):
+                    (label, detail) = (item.title, item.subtitle)
+                case let .fillIdentity(item):
+                    (label, detail) = (item.title, item.subtitle)
+                }
+                return ["id": suggestion.id, "label": label, "detail": detail]
+            }
+            return HarnessHTTPResponse.json([
+                "visible": true,
+                "fieldID": overlay.focus.fieldID,
+                "fieldKind": overlay.focus.fieldKind.rawValue,
+                "hostname": overlay.focus.hostname,
+                "selectionIndex": overlay.selectedSuggestionIndex,
+                "rows": rows
+            ])
+        }
+
+        @MainActor
+        private static func handleKeypress(_ request: HarnessHTTPRequest) -> HarnessHTTPResponse {
+            guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                  let tabRaw = payload["tabID"] as? String,
+                  let tabID = UUID(uuidString: tabRaw),
+                  let commandRaw = payload["command"] as? String,
+                  let command = PasswordAutofillKeyCommand(rawValue: commandRaw)
+            else {
+                return HarnessHTTPResponse.error(
+                    "body must be {\"tabID\", \"command\": moveUp|moveDown|activate|dismiss}",
+                    status: 400
+                )
+            }
+            guard let found = DebugHarnessRegistry.shared.findTab(tabID),
+                  let coordinator = found.tab.passwordCoordinator
+            else {
+                return HarnessHTTPResponse.error("unknown tab or no coordinator", status: 404)
+            }
+            coordinator.handleKeyCommand(command)
+            return HarnessHTTPResponse.json(["ok": true])
+        }
+
+        @MainActor
+        private static func handleGetProvider() -> HarnessHTTPResponse {
+            let kind = SettingsStore.shared.passwordManagerProvider
+            let provider = PasswordManagerProviderRegistry.shared.activeProvider(for: kind)
+            return HarnessHTTPResponse.json([
+                "kind": kind.rawValue,
+                "state": String(describing: provider.state)
+            ])
+        }
+
+        @MainActor
+        private static func handleSetProvider(_ request: HarnessHTTPRequest) -> HarnessHTTPResponse {
+            guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                  let kindRaw = payload["kind"] as? String,
+                  let kind = PasswordManagerProviderKind(rawValue: kindRaw)
+            else {
+                return HarnessHTTPResponse.error("body must be {\"kind\": evo|onePassword|mock}", status: 400)
+            }
+            SettingsStore.shared.passwordManagerProvider = kind
+            return HarnessHTTPResponse.json(["ok": true])
         }
     }
 #endif

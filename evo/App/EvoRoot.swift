@@ -35,6 +35,9 @@ struct EvoRoot: View {
     @State private var window: NSWindow?
     /// Keeps the provider alive; `FrontmostTabRegistry` only holds it weakly.
     @State private var claudePageProvider: LiveActiveTabTextProvider?
+    #if DEBUG
+        @State private var harnessRegistrationID: UUID?
+    #endif
 
     init(isPrivate: Bool = false) {
         _privacyMode = StateObject(wrappedValue: PrivacyMode(isPrivate: isPrivate))
@@ -119,8 +122,20 @@ struct EvoRoot: View {
             .enableInjection()
             .onDisappear {
                 claudeChat.shutdown()
+                #if DEBUG
+                    if let harnessRegistrationID {
+                        DebugHarnessRegistry.shared.unregister(harnessRegistrationID)
+                    }
+                #endif
             }
             .onAppear {
+                #if DEBUG
+                    harnessRegistrationID = DebugHarnessRegistry.shared.register(
+                        tabManager: tabManager,
+                        historyManager: historyManager,
+                        isPrivate: privacyMode.isPrivate
+                    )
+                #endif
                 let pageProvider = LiveActiveTabTextProvider(tabManager: tabManager)
                 claudePageProvider = pageProvider
                 FrontmostTabRegistry.shared.setFrontmost(pageProvider)
@@ -223,7 +238,9 @@ struct EvoRoot: View {
                 NotificationCenter.default.addObserver(forName: .findInPage, object: nil, queue: .main) { note in
                     Task { @MainActor in
                         guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
-                        if let activeTab = tabManager.activeTab { appState.showFinderIn = activeTab.id }
+                        if let activeTab = tabManager.activeTab {
+                            appState.showFinderIn = activeTab.id
+                        }
                     }
                 }
                 NotificationCenter.default.addObserver(forName: .toggleFullURL, object: nil, queue: .main) { note in
@@ -273,7 +290,9 @@ struct EvoRoot: View {
                 NotificationCenter.default.addObserver(forName: .togglePinTab, object: nil, queue: .main) { note in
                     Task { @MainActor in
                         guard note.object as? NSWindow === window ?? NSApp.keyWindow else { return }
-                        if let tab = tabManager.activeTab { tabManager.togglePinTab(tab) }
+                        if let tab = tabManager.activeTab {
+                            tabManager.togglePinTab(tab)
+                        }
                     }
                 }
                 NotificationCenter.default.addObserver(forName: .nextTab, object: nil, queue: .main) { note in

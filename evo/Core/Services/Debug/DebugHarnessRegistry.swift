@@ -1,5 +1,6 @@
 #if DEBUG
     import Foundation
+    import SwiftData
 
     /// Debug-only bridge from the singleton harness server to per-window state.
     /// EvoRoot registers its managers on appear; references are weak so a closed
@@ -50,8 +51,18 @@
         }
 
         func findTab(_ tabID: UUID) -> (tab: Tab, manager: TabManager)? {
+            // `TabManager.containers` is a `@Query` declared on a plain `ObservableObject`, not a
+            // `View`, so SwiftUI never binds it to a live `ModelContext` and it always reads as
+            // empty outside the normal view-update cycle. Fetch containers directly from the
+            // manager's `modelContext` instead (mirrors `TabManager.fetchContainers()`, which is
+            // `private`).
             for snapshot in snapshots() {
-                for container in snapshot.tabManager.containers {
+                let descriptor = FetchDescriptor<TabContainer>(sortBy: [SortDescriptor(
+                    \.lastAccessedAt,
+                    order: .reverse
+                )])
+                let containers = (try? snapshot.tabManager.modelContext.fetch(descriptor)) ?? []
+                for container in containers {
                     if let tab = container.tabs.first(where: { $0.id == tabID }) {
                         return (tab, snapshot.tabManager)
                     }

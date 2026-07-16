@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PORT="${EVO_HARNESS_PORT:-4590}"
+# NOTE: 'xcodebuild test' rewrites this token file; if requests 401, relaunch the app or re-read the token.
 TOKEN=$(cat "$HOME/Library/Application Support/Evo/harness-token")
 BASE="http://127.0.0.1:$PORT"
 OUT="${1:-/tmp/evo-harness-smoke}"
@@ -10,6 +11,13 @@ mkdir -p "$OUT"
 
 req() { curl -sf -H "X-Evo-Harness-Token: $TOKEN" "$@"; }
 
+# Capture prior provider setting to restore on exit
+PRIOR_KIND=$(req "$BASE/provider" | python3 -c "import sys,json;print(json.load(sys.stdin)['kind'])")
+
+# Register trap to restore provider on exit (success or failure)
+trap 'curl -sf -H "X-Evo-Harness-Token: $TOKEN" -X POST -d "{\"kind\":\"$PRIOR_KIND\"}" "$BASE/provider" >/dev/null || true' EXIT
+
+echo "Provider will be restored to: $PRIOR_KIND"
 echo "1. health"; req "$BASE/health"
 
 echo "2. switch to mock provider"

@@ -1,8 +1,57 @@
 #if DEBUG
+    import AppKit
     import Foundation
     import SwiftData
 
     enum DebugHarnessRouter {
+        enum HarnessError: Error {
+            case timeout
+        }
+
+        static func harnessTimeout<T: Sendable>(
+            seconds: Double,
+            _ operation: @escaping @Sendable () async throws -> T
+        ) async throws -> T {
+            try await withThrowingTaskGroup(of: T.self) { group in
+                group.addTask { try await operation() }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                    throw HarnessError.timeout
+                }
+                guard let first = try await group.next() else { throw HarnessError.timeout }
+                group.cancelAll()
+                return first
+            }
+        }
+
+        /// WebKit hands back NSString/NSNumber/NSArray/NSDictionary/NSNull. Anything else is stringified.
+        static func jsonSafe(_ value: Any?) -> Any {
+            guard let value else { return NSNull() }
+            if JSONSerialization.isValidJSONObject(["v": value]) {
+                return value
+            }
+            return String(describing: value)
+        }
+
+        static func writePNG(image: NSImage, to path: String) -> HarnessHTTPResponse {
+            guard let tiff = image.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff),
+                  let png = rep.representation(using: .png, properties: [:])
+            else {
+                return HarnessHTTPResponse.error("png encode failed", status: 500)
+            }
+            do {
+                try png.write(to: URL(fileURLWithPath: path))
+                return HarnessHTTPResponse.json([
+                    "path": path,
+                    "width": Int(rep.pixelsWide),
+                    "height": Int(rep.pixelsHigh)
+                ])
+            } catch {
+                return HarnessHTTPResponse.error("write failed: \(error.localizedDescription)", status: 500)
+            }
+        }
+
         /// `TabManager.containers` is a `@Query` declared on a plain `ObservableObject`, not a `View`,
         /// so SwiftUI never binds it to a live `ModelContext` and it always reads as empty outside the
         /// normal view-update cycle. Fetch containers directly from the manager's `modelContext` instead
@@ -91,9 +140,126 @@
                 }
                 return HarnessHTTPResponse.json(["tabID": newTab.id.uuidString])
 
+            case ("POST", "/eval"):
+                return await handleEval(request)
+
+            case ("POST", "/screenshot"):
+                return await handleScreenshot(request)
+
             default:
                 return HarnessHTTPResponse.error("no route for \(request.method) \(request.path)", status: 404)
             }
+        }
+
+        @MainActor
+        private static func handleEval(_ request: HarnessHTTPRequest) async -> HarnessHTTPResponse {
+            guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                  let tabRaw = payload["tabID"] as? String,
+                  let tabID = UUID(uuidString: tabRaw),
+                  let script = payload["js"] as? String
+            else {
+                return HarnessHTTPResponse.error("body must be {\"tabID\", \"js\"}", status: 400)
+            }
+            guard let found = DebugHarnessRegistry.shared.findTab(tabID),
+                  let page = found.tab.browserPage
+            else {
+                return HarnessHTTPResponse.error("unknown tab or no page", status: 404)
+            }
+            do {
+                let outcome: Swift.Result<Any?, Error> = try await Self.harnessTimeout(seconds: 5) {
+                    await withCheckedContinuation { continuation in
+                        Task { @MainActor in
+                            page.evaluateJavaScript(script) { value, error in
+                                if let error {
+                                    continuation.resume(returning: Swift.Result.failure(error))
+                                } else {
+                                    continuation.resume(returning: Swift.Result.success(value))
+                                }
+                            }
+                        }
+                    }
+                }
+                switch outcome {
+                case let .success(value):
+                    return HarnessHTTPResponse.json(["result": Self.jsonSafe(value)])
+                case let .failure(error):
+                    return HarnessHTTPResponse.json([
+                        "error": error.localizedDescription,
+                        "jsException": true
+                    ])
+                }
+            } catch {
+                return HarnessHTTPResponse.error("eval timed out", status: 504)
+            }
+        }
+
+        @MainActor
+        private static func handleScreenshot(_ request: HarnessHTTPRequest) async -> HarnessHTTPResponse {
+            guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                  let scope = payload["scope"] as? String,
+                  let path = payload["path"] as? String,
+                  path.hasPrefix("/")
+            else {
+                return HarnessHTTPResponse.error(
+                    "body must be {\"scope\": \"page\"|\"window\", \"path\": \"/abs.png\"}",
+                    status: 400
+                )
+            }
+            switch scope {
+            case "page":
+                return await handlePageScreenshot(payload: payload, path: path)
+            case "window":
+                return handleWindowScreenshot(path: path)
+            default:
+                return HarnessHTTPResponse.error("scope must be page or window", status: 400)
+            }
+        }
+
+        @MainActor
+        private static func handlePageScreenshot(payload: [String: Any], path: String) async -> HarnessHTTPResponse {
+            guard let tabRaw = payload["tabID"] as? String,
+                  let tabID = UUID(uuidString: tabRaw),
+                  let found = DebugHarnessRegistry.shared.findTab(tabID),
+                  let page = found.tab.browserPage
+            else {
+                return HarnessHTTPResponse.error("page scope needs a valid tabID", status: 404)
+            }
+            let image: NSImage? = await withCheckedContinuation { continuation in
+                page.takeSnapshot(
+                    configuration: BrowserSnapshotConfiguration(rect: nil, afterScreenUpdates: true)
+                ) { image, _ in
+                    continuation.resume(returning: image)
+                }
+            }
+            guard let image else {
+                return HarnessHTTPResponse.error("snapshot failed", status: 500)
+            }
+            return Self.writePNG(image: image, to: path)
+        }
+
+        @MainActor
+        private static func handleWindowScreenshot(path: String) -> HarnessHTTPResponse {
+            guard let window = NSApp.windows
+                .first(where: { $0.isVisible && $0.contentView != nil && !($0 is NSPanel) }),
+                let view = window.contentView,
+                let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+            else {
+                return HarnessHTTPResponse.error("no visible window", status: 404)
+            }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return HarnessHTTPResponse.error("png encode failed", status: 500)
+            }
+            do {
+                try png.write(to: URL(fileURLWithPath: path))
+            } catch {
+                return HarnessHTTPResponse.error("write failed: \(error.localizedDescription)", status: 500)
+            }
+            return HarnessHTTPResponse.json([
+                "path": path,
+                "width": Int(rep.pixelsWide),
+                "height": Int(rep.pixelsHigh)
+            ])
         }
     }
 #endif

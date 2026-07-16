@@ -1,6 +1,7 @@
 #if DEBUG
     import AppKit
     import Foundation
+    import os
     import SwiftData
 
     enum DebugHarnessRouter {
@@ -8,19 +9,61 @@
             case timeout
         }
 
+        /// Structured concurrency (`withThrowingTaskGroup`) cannot return until every child task
+        /// completes, even after `cancelAll()` — cancellation is only a cooperative flag. An
+        /// operation suspended inside `withCheckedContinuation` awaiting a non-cancellation-aware
+        /// callback (e.g. WKWebView's `evaluateJavaScript`) never observes that flag, so a task
+        /// group racing it against a timeout does not bound wall-clock time. Use a single
+        /// continuation instead: whichever of {operation, timer} finishes first resumes it, guarded
+        /// by a lock so only the first winner's result is delivered. If the operation hangs, its
+        /// `Task` keeps running in the background and its eventual result/error is silently dropped
+        /// via the `resumed` guard once the timeout has already resumed the continuation — this is
+        /// intended, documented behavior, not a leak of the timeout guarantee.
         static func harnessTimeout<T: Sendable>(
             seconds: Double,
             _ operation: @escaping @Sendable () async throws -> T
         ) async throws -> T {
-            try await withThrowingTaskGroup(of: T.self) { group in
-                group.addTask { try await operation() }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                    throw HarnessError.timeout
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+                let resumed = OSAllocatedUnfairLock(initialState: false)
+                Task {
+                    do {
+                        let value = try await operation()
+                        let first = resumed.withLock { alreadyResumed -> Bool in
+                            if alreadyResumed {
+                                return false
+                            }
+                            alreadyResumed = true
+                            return true
+                        }
+                        if first {
+                            continuation.resume(returning: value)
+                        }
+                    } catch {
+                        let first = resumed.withLock { alreadyResumed -> Bool in
+                            if alreadyResumed {
+                                return false
+                            }
+                            alreadyResumed = true
+                            return true
+                        }
+                        if first {
+                            continuation.resume(throwing: error)
+                        }
+                    }
                 }
-                guard let first = try await group.next() else { throw HarnessError.timeout }
-                group.cancelAll()
-                return first
+                Task {
+                    try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                    let first = resumed.withLock { alreadyResumed -> Bool in
+                        if alreadyResumed {
+                            return false
+                        }
+                        alreadyResumed = true
+                        return true
+                    }
+                    if first {
+                        continuation.resume(throwing: HarnessError.timeout)
+                    }
+                }
             }
         }
 

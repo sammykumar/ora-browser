@@ -4,6 +4,7 @@ import Foundation
 enum ProviderItemRef: Hashable, Sendable {
     case evo(persistentReference: Data)
     case onePassword(accountName: String, vaultID: String, itemID: String)
+    case mock(itemID: String)
 }
 
 /// A provider-agnostic credential surfaced to the autofill overlay. Carries NO secret.

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: Basic Login</title></head>
+<body>
+<h1>Basic Login</h1>
+<form id="login-form">
+    <label>Email <input type="email" id="username" name="username" autocomplete="username"></label>
+    <label>Password <input type="password" id="password" name="password" autocomplete="current-password"></label>
+    <button type="submit" id="submit">Sign in</button>
+</form>
+<p id="status">signed-out</p>
+<script>
+    document.getElementById("login-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("status").textContent =
+            "submitted:" + document.getElementById("username").value;
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: Two-Step Login</title></head>
+<body>
+<h1>Two-Step Login</h1>
+<div id="step1">
+    <label>Email <input type="email" id="username" name="username" autocomplete="username"></label>
+    <button type="button" id="next">Next</button>
+</div>
+<div id="step2" hidden>
+    <label>Password <input type="password" id="password" name="password" autocomplete="current-password"></label>
+    <button type="button" id="submit">Sign in</button>
+</div>
+<p id="status">step-1</p>
+<script>
+    document.getElementById("next").addEventListener("click", () => {
+        document.getElementById("step1").hidden = true;
+        document.getElementById("step2").hidden = false;
+        document.getElementById("status").textContent = "step-2";
+        document.getElementById("password").focus();
+    });
+    document.getElementById("submit").addEventListener("click", () => {
+        document.getElementById("status").textContent =
+            "submitted:" + document.getElementById("username").value;
+    });
+</script>
+</body>
+</html>

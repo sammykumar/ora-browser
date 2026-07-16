@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: One-Time Code</title></head>
+<body>
+<h1>Enter Code</h1>
+<form id="otp-form">
+    <label>Code <input id="otp" name="otp" autocomplete="one-time-code" inputmode="numeric"></label>
+    <button type="submit" id="submit">Verify</button>
+</form>
+<p id="status">unverified</p>
+<script>
+    document.getElementById("otp-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("status").textContent =
+            "verified:" + document.getElementById("otp").value;
+    });
+</script>
+</body>
+</html>

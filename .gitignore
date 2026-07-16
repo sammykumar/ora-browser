@@ -104,3 +104,6 @@ Vendor/CEF
 # 1Password sidecar spike (throwaway). The prebuilt tools/op-helper/bin/evo-op-helper
 # IS committed (it's the input to the Evo.app copy phase) — do not ignore bin/.
 tools/op-helper/spike/
+
+# Stale local build of the op-helper sidecar (only bin/evo-op-helper is the real, committed binary)
+tools/op-helper/op-helper

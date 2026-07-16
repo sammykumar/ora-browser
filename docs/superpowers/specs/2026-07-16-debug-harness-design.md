@@ -95,7 +95,7 @@ Known limitation: in-process window rendering composites what evo draws, not tru
 
 - `#if DEBUG` compile gate: the server, registry, mock provider availability, and route table do not exist in Release binaries.
 - Bind `127.0.0.1` only; per-launch token; token file 0600.
-- Reveal-type operations are refused unless the active provider is `mock` — the harness can never exfiltrate real Keychain or 1Password secrets even in Debug.
+- Reveal-type and provider routes never return real secrets (v1 exposes no reveal route at all). Note the honest limit: `/eval` runs arbitrary JS in the live page, so it can observe DOM state including fields a real provider filled — mitigated by the localhost bind, per-launch token, no-CORS behavior, and the `#if DEBUG` gate, and carrying ~zero marginal risk over the user's own debug build.
 
 ## Testing
 

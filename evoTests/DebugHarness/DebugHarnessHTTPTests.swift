@@ -1,6 +1,6 @@
+@testable import Evo
 import Foundation
 import Testing
-@testable import Evo
 
 struct DebugHarnessHTTPTests {
     private func data(_ s: String) -> Data {
@@ -77,5 +77,47 @@ struct DebugHarnessHTTPTests {
         let text = String(data: response.serialized(), encoding: .utf8) ?? ""
         #expect(text.hasPrefix("HTTP/1.1 404 "))
         #expect(text.contains(#""error":"unknown tab""#))
+    }
+
+    @Test func negativeContentLengthIsInvalid() {
+        let raw = data("POST /x HTTP/1.1\r\nContent-Length: -1\r\n\r\n")
+        guard case .invalid = HarnessHTTPParser.parse(raw) else {
+            Issue.record("expected .invalid for negative Content-Length")
+            return
+        }
+    }
+
+    @Test func parsesFromNonZeroBasedSlice() {
+        // Test GET from a sliced Data (not subdata)
+        let getRequest = "GET /health HTTP/1.1\r\nHost: x\r\n\r\n"
+        var junk = Data()
+        for _ in 0 ..< 10 {
+            junk.append(0xFF)
+        }
+        let fullData = junk + Data(getRequest.utf8)
+        let sliced = fullData[10...]
+        guard case let .request(req) = HarnessHTTPParser.parse(sliced) else {
+            Issue.record("expected parsed GET request from slice")
+            return
+        }
+        #expect(req.path == "/health")
+        #expect(req.method == "GET")
+
+        // Test POST with body from a sliced Data
+        let body = "hi"
+        let postRequest = "POST /e HTTP/1.1\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
+        var junkPost = Data()
+        for _ in 0 ..< 10 {
+            junkPost.append(0xFF)
+        }
+        let fullPostData = junkPost + Data(postRequest.utf8)
+        let slicedPost = fullPostData[10...]
+        guard case let .request(postReq) = HarnessHTTPParser.parse(slicedPost) else {
+            Issue.record("expected parsed POST request from slice")
+            return
+        }
+        #expect(postReq.path == "/e")
+        #expect(postReq.method == "POST")
+        #expect(String(data: postReq.body, encoding: .utf8) == body)
     }
 }

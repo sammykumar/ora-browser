@@ -45,8 +45,9 @@
             }
 
             let contentLength = Int(headers["content-length"] ?? "0") ?? 0
+            guard contentLength >= 0 else { return .invalid }
             let bodyStart = headerEnd.upperBound
-            let availableBody = data.count - bodyStart
+            let availableBody = data.endIndex - bodyStart
             guard availableBody >= contentLength else { return .incomplete }
             let body = data.subdata(in: bodyStart ..< bodyStart + contentLength)
 
@@ -83,7 +84,7 @@
 
         private static let statusText: [Int: String] = [
             200: "OK", 400: "Bad Request", 401: "Unauthorized",
-            404: "Not Found", 500: "Internal Server Error", 504: "Gateway Timeout",
+            404: "Not Found", 500: "Internal Server Error", 504: "Gateway Timeout"
         ]
 
         func serialized() -> Data {

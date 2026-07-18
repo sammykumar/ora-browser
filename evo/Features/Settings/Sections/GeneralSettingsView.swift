@@ -84,6 +84,13 @@ struct GeneralSettingsView: View {
                 Toggle("Auto Picture-in-Picture on tab switch", isOn: $settings.autoPiPEnabled)
             }
 
+            SettingsCard(header: "Quitting") {
+                Toggle("Confirm before quitting", isOn: $settings.confirmBeforeQuit)
+                Text("When off, ⌘Q quits immediately without the confirmation dialog.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             SettingsCard(header: "Updates") {
                 Toggle("Auto-check for updates", isOn: $settings.autoUpdateEnabled)
 

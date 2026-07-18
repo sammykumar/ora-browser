@@ -143,6 +143,7 @@ class SettingsStore: ObservableObject {
     // MARK: - Global keys
 
     private let autoUpdateKey = "settings.autoUpdateEnabled"
+    private let confirmBeforeQuitKey = "settings.confirmBeforeQuit"
     private let trackingThirdPartyKey = "settings.tracking.blockThirdParty"
     private let fingerprintingKey = "settings.tracking.blockFingerprinting"
     private let adBlockingKey = "settings.tracking.adBlocking"
@@ -189,6 +190,10 @@ class SettingsStore: ObservableObject {
 
     @Published var autoUpdateEnabled: Bool {
         didSet { defaults.set(autoUpdateEnabled, forKey: autoUpdateKey) }
+    }
+
+    @Published var confirmBeforeQuit: Bool {
+        didSet { defaults.set(confirmBeforeQuit, forKey: confirmBeforeQuitKey) }
     }
 
     @Published var blockThirdPartyTrackers: Bool {
@@ -284,6 +289,7 @@ class SettingsStore: ObservableObject {
 
     init() {
         autoUpdateEnabled = defaults.bool(forKey: autoUpdateKey)
+        confirmBeforeQuit = defaults.object(forKey: confirmBeforeQuitKey) as? Bool ?? true
         blockThirdPartyTrackers = defaults.bool(forKey: trackingThirdPartyKey)
         blockFingerprinting = defaults.object(forKey: fingerprintingKey) as? Bool ?? false
         adBlocking = defaults.bool(forKey: adBlockingKey)

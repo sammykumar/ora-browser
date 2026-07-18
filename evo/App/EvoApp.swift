@@ -15,11 +15,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
+    /// Decides how to respond to a quit request. Deferred (for the confirmation dialog) only when
+    /// the user wants a confirmation AND there's a window to host it; otherwise terminate immediately.
+    static func terminateReply(confirmBeforeQuit: Bool, hasVisibleWindow: Bool) -> NSApplication.TerminateReply {
+        guard hasVisibleWindow else { return .terminateNow }
+        return confirmBeforeQuit ? .terminateLater : .terminateNow
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let targetWindow = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible })
-        guard let targetWindow else { return .terminateNow }
-        NotificationCenter.default.post(name: .quitRequested, object: targetWindow)
-        return .terminateLater
+        let reply = Self.terminateReply(
+            confirmBeforeQuit: SettingsStore.shared.confirmBeforeQuit,
+            hasVisibleWindow: targetWindow != nil
+        )
+        if reply == .terminateLater, let targetWindow {
+            NotificationCenter.default.post(name: .quitRequested, object: targetWindow)
+        }
+        return reply
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -31,8 +43,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func getWindow() -> NSWindow? {
-        if let key = NSApp.keyWindow { return key }
-        if let visible = NSApp.windows.first(where: { $0.isVisible }) { return visible }
+        if let key = NSApp.keyWindow {
+            return key
+        }
+        if let visible = NSApp.windows.first(where: { $0.isVisible }) {
+            return visible
+        }
         if let any = NSApp.windows.first {
             any.makeKeyAndOrderFront(nil)
             return any

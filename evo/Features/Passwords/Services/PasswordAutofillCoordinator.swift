@@ -190,6 +190,18 @@ final class PasswordAutofillCoordinator {
         setOverlayKeyboardActive(true)
     }
 
+    /// Whether filling a saved credential should auto-submit the form.
+    ///
+    /// Only when the user enabled auto-submit AND this is a sign-in form (`.login`) AND a password
+    /// field is actually being filled. A username-only step (empty `passwordFieldIDs`) — e.g.
+    /// Microsoft's / Google's first two-step page — must NOT auto-submit: the page's SPA hasn't
+    /// captured the value into its model yet, so submitting sends an empty identifier (Microsoft
+    /// AADSTS90100 "login parameter is empty"). Auto-submit belongs to the password step, not the
+    /// email step. `.createAccount` never auto-submits.
+    static func shouldSubmitAfterFill(focus: PasswordBridgeFocusPayload, submitEnabled: Bool) -> Bool {
+        submitEnabled && focus.action == .login && !focus.passwordFieldIDs.isEmpty
+    }
+
     func autofill(_ credential: ProviderCredential, for overlay: PasswordAutofillOverlayState) {
         Task { [weak self] in
             guard let self else { return }
@@ -206,7 +218,10 @@ final class PasswordAutofillCoordinator {
                     username: revealed.username.isEmpty ? nil : revealed.username,
                     password: revealed.password,
                     highlightColor: "#E8F5E9",
-                    submitAfterFill: overlay.focus.action == .login && self.settings.passwordAutofillSubmitEnabled
+                    submitAfterFill: Self.shouldSubmitAfterFill(
+                        focus: overlay.focus,
+                        submitEnabled: self.settings.passwordAutofillSubmitEnabled
+                    )
                 )
 
                 self.evaluate(scriptMethod: "fillCredentials", payload: request)

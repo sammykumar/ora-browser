@@ -21,4 +21,16 @@ struct OnePasswordStatusDisambiguationTests {
         let state = OnePasswordService.disambiguate(errorCode: "locked", appRunning: true)
         #expect(state == .locked)
     }
+
+    @Test func timeoutHintsVaultMayBeLocked() {
+        // The onepassword-sdk hangs on a locked vault (#266); our watchdog surfaces that as a
+        // "timeout" request failure. It must not fall through to the generic "1Password error" —
+        // it should hint that the vault may be locked so the user knows to unlock it.
+        let state = OnePasswordService.disambiguate(errorCode: "timeout", appRunning: true)
+        guard case let .unavailable(reason) = state else {
+            Issue.record("expected .unavailable for timeout, got \(state)")
+            return
+        }
+        #expect(reason.lowercased().contains("lock"))
+    }
 }

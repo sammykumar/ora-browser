@@ -403,10 +403,18 @@
         private static func handleGetProvider() -> HarnessHTTPResponse {
             let kind = SettingsStore.shared.passwordManagerProvider
             let provider = PasswordManagerProviderRegistry.shared.activeProvider(for: kind)
-            return HarnessHTTPResponse.json([
+            // Diagnostic: distinct credential hosts in the 1Password metadata cache
+            // (titles/hosts only — the cache holds no secrets by design).
+            var payload: [String: Any] = [
                 "kind": kind.rawValue,
                 "state": String(describing: provider.state)
-            ])
+            ]
+            if kind == .onePassword {
+                let hosts = OnePasswordService.shared.metadata.map(\.host)
+                payload["credentialCount"] = hosts.count
+                payload["hosts"] = Array(Set(hosts)).sorted()
+            }
+            return HarnessHTTPResponse.json(payload)
         }
 
         @MainActor

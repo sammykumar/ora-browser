@@ -78,8 +78,12 @@ final class OnePasswordService: ObservableObject {
                 anyLocked = true
             } catch let OpHelperError.wire(code, _) {
                 lastErrorState = Self.disambiguate(errorCode: code, appRunning: onePasswordRunning())
+            } catch OpHelperError.timeout {
+                // The SDK hangs on a locked vault (#266); the Go watchdog surfaces that as a
+                // non-wire timeout. Record it so an empty cache doesn't masquerade as "Connected".
+                lastErrorState = Self.disambiguate(errorCode: "timeout", appRunning: onePasswordRunning())
             } catch {
-                continue
+                lastErrorState = .unavailable(reason: "1Password error")
             }
             // Reuse the `process` already bound by the loop's guard; a structured-fetch
             // failure is non-fatal and never touches the login-derived state below.
@@ -96,16 +100,27 @@ final class OnePasswordService: ObservableObject {
             return seen.insert(key).inserted
         }
         structuredMetadata = structuredMerged
+        state = Self.resolveRefreshState(
+            anyLocked: anyLocked,
+            hasMetadata: !metadata.isEmpty,
+            lastError: lastErrorState
+        )
+    }
+
+    /// Picks the post-refresh provider state. A locked account wins; otherwise a non-empty cache is
+    /// `.ready`; an empty cache after an error surfaces that error (never a silent "Connected");
+    /// an empty cache with no error is a genuinely empty vault (`.ready`).
+    static func resolveRefreshState(anyLocked: Bool, hasMetadata: Bool, lastError: ProviderState?) -> ProviderState {
         if anyLocked {
-            state = .locked
-        } else if !metadata.isEmpty {
-            state = .ready
-        } else if let lastErrorState {
-            // Empty cache AND at least one account errored — don't report "Connected".
-            state = lastErrorState
-        } else {
-            state = .ready
+            return .locked
         }
+        if hasMetadata {
+            return .ready
+        }
+        if let lastError {
+            return lastError
+        }
+        return .ready
     }
 
     /// Disambiguates the sidecar's ambiguous `channelClosed` wire error (which can mean
@@ -121,6 +136,8 @@ final class OnePasswordService: ObservableObject {
                 : .unavailable(reason: "1Password isn’t running")
         case "locked":
             return .locked
+        case "timeout":
+            return .unavailable(reason: "1Password isn’t responding — the vault may be locked")
         default:
             return .unavailable(reason: "1Password error")
         }
@@ -166,12 +183,18 @@ final class OnePasswordService: ObservableObject {
     /// `github.com.evil.com`) from matching `github.com`.
     static func hostsMatch(pageHost: String, credentialHost: String) -> Bool {
         guard !pageHost.isEmpty, !credentialHost.isEmpty else { return false }
-        if pageHost == credentialHost { return true }
+        if pageHost == credentialHost {
+            return true
+        }
         // Subdomain match in either direction (accounts.google.com <-> google.com).
         // Require the shorter (parent) host to have at least 2 labels (a dot) so a bare
         // public suffix like "com" can never match — prevents cross-site over-match.
-        if pageHost.hasSuffix("." + credentialHost), credentialHost.contains(".") { return true }
-        if credentialHost.hasSuffix("." + pageHost), pageHost.contains(".") { return true }
+        if pageHost.hasSuffix("." + credentialHost), credentialHost.contains(".") {
+            return true
+        }
+        if credentialHost.hasSuffix("." + pageHost), pageHost.contains(".") {
+            return true
+        }
         return false
     }
 
@@ -209,7 +232,9 @@ final class OnePasswordService: ObservableObject {
             "username": username,
             "password": password
         ]
-        if let existingItemID { params["itemId"] = existingItemID }
+        if let existingItemID {
+            params["itemId"] = existingItemID
+        }
         _ = try await process.request(method: "saveItem", params: params)
         await refresh()
     }
@@ -246,7 +271,9 @@ final class OnePasswordService: ObservableObject {
         let raw = result["values"] as? [String: String] ?? [:]
         var out: [FieldPurpose: String] = [:]
         for (key, value) in raw {
-            if let purpose = FieldPurpose(rawValue: key) { out[purpose] = value }
+            if let purpose = FieldPurpose(rawValue: key) {
+                out[purpose] = value
+            }
         }
         return out
     }

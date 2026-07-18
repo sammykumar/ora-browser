@@ -35,7 +35,9 @@ struct OnePasswordServiceTests {
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let id = obj["id"] as? String, let method = obj["method"] as? String
             else { return }
-            if method == "listItems" { listItemsCalls += 1 }
+            if method == "listItems" {
+                listItemsCalls += 1
+            }
             let result = switch method {
             case "listItems":
                 "{\"items\":[{\"id\":\"i1\",\"vaultId\":\"v1\",\"title\":\"GitHub\"," +
@@ -154,6 +156,67 @@ struct OnePasswordServiceTests {
         }
 
         func terminate() {}
+    }
+
+    /// Fails every request with a non-wire `OpHelperError.timeout` — the exact error the Go
+    /// watchdog produces when the sidecar hangs on a locked vault (SDK #266).
+    private final class TimeoutTransport: OpHelperTransport {
+        var onLine: ((String) -> Void)?
+        func send(line: String) throws {
+            throw OpHelperError.timeout
+        }
+
+        func terminate() {}
+    }
+
+    @Test func refreshWithTimeoutDoesNotReportReadyWithEmptyCache() async {
+        let service = OnePasswordService(transportFactory: { _ in TimeoutTransport() })
+        service.configureAccounts(["my.1password.com"])
+        await service.refresh()
+        // A swallowed timeout must NOT masquerade as "Connected" with zero credentials — that's the
+        // silent-empty-overlay bug. Empty cache + a request failure ⇒ a surfaced error state.
+        #expect(service.metadata.isEmpty)
+        #expect(service.state != .ready)
+    }
+
+    /// Times out until `unlocked` flips, then answers `listItems` normally — models the user
+    /// unlocking 1Password after the first (locked) sync failed.
+    private final class UnlockableTransport: OpHelperTransport {
+        var onLine: ((String) -> Void)?
+        var unlocked = false
+        func send(line: String) throws {
+            guard unlocked else { throw OpHelperError.timeout }
+            guard let data = line.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let id = obj["id"] as? String, let method = obj["method"] as? String
+            else { return }
+            let result = method == "listItems"
+                ? "{\"items\":[{\"id\":\"i1\",\"vaultId\":\"v1\",\"title\":\"GitHub\"," +
+                "\"username\":\"octo\",\"urls\":[\"https://github.com\"],\"hasTotp\":false}]}"
+                : "{}"
+            onLine?("{\"id\":\"\(id)\",\"ok\":true,\"result\":\(result)}")
+        }
+
+        func terminate() {}
+    }
+
+    @Test func recoversAfterUnlockWithoutRestart() async {
+        let store = SettingsStore.shared
+        let baselineAccounts = store.onePasswordAccounts
+        store.setOnePasswordAccounts(["my.1password.com"])
+        defer { store.setOnePasswordAccounts(baselineAccounts) }
+
+        let transport = UnlockableTransport()
+        let service = OnePasswordService(transportFactory: { _ in transport })
+
+        await service.ensureConfigured() // locked vault ⇒ timeout ⇒ empty cache, no "ready"
+        #expect(service.metadata.isEmpty)
+
+        transport.unlocked = true
+        // The failed first attempt must have cleared the one-shot guard, so unlocking + a later
+        // credential request recovers the cache without an app restart.
+        await service.ensureConfigured()
+        #expect(service.metadata.count == 1)
     }
 
     @Test func ensureConfiguredRetriesAfterFailedFirstAttempt() async {

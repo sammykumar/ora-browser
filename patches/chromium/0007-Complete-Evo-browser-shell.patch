@@ -1,0 +1,666 @@
+From 857ae2519d09f9f468ddf01fbe832f4423c3e1a0 Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 17:45:53 -0500
+Subject: [PATCH 07/12] Complete Evo browser shell
+
+---
+ chrome/app/generated_resources.grd            |  16 +-
+ chrome/browser/ui/views/frame/browser_view.cc | 301 ++++++++++++++++++
+ chrome/browser/ui/views/frame/browser_view.h  |  18 ++
+ .../tabs/vertical/vertical_tab_group_view.cc  |  37 +--
+ .../vertical_tab_strip_bottom_container.cc    |   9 +
+ .../tabs/vertical/vertical_tab_strip_view.cc  |  20 ++
+ .../tabs/vertical/vertical_tab_strip_view.h   |   2 +
+ 7 files changed, 375 insertions(+), 28 deletions(-)
+
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index e422e6817d260498a425ab181dfe0b21d0eef8e7..3a2ec40b3159c39790a3cf4f1a0cd3eea7f478b0 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -11956,13 +11956,13 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_GROUP" desc="The label of the tab context menu submenu for adding one or more tabs to either a new group or an existing tab group. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural,
+-          =1 {Add tab to group}
+-          other {Add tabs to group}}
++          =1 {Move tab to Space}
++          other {Move tabs to Space}}
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_NEW_GROUP" desc="The label of the tab context menu item for creating a new tab group and adding one or more tabs to it. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural,
+-          =1 {Add tab to new group}
+-          other {Add tabs to new group}}
++          =1 {Move tab to new Space}
++          other {Move tabs to new Space}}
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_NEW_SPLIT" desc="The label of the tab context menu submenu for creating a split view between the selected tab and the active tab.">
+           Add tab to new split view
+@@ -12072,13 +12072,13 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_GROUP" desc="In Title Case: The label of the tab context menu submenu for adding one or more tabs to either a new group or an existing tab group. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural,
+-          =1 {Add Tab to Group}
+-          other {Add Tabs to Group}}
++          =1 {Move Tab to Space}
++          other {Move Tabs to Space}}
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_NEW_GROUP" desc="In Title Case: The label of the tab context menu item for creating a new tab group and adding one or more tabs to it. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural,
+-          =1 {Add Tab to New Group}
+-          other {Add Tabs to New Group}}
++          =1 {Move Tab to New Space}
++          other {Move Tabs to New Space}}
+         </message>
+         <message name="IDS_TAB_CXMENU_ADD_TAB_TO_NEW_SPLIT" desc="In Title Case: The label of the tab context menu submenu for creating a split view between the selected tab and the active tab.">
+           Add Tab to New Split View
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index c5b196b2be31797fdcd3b41e8816db84b83705fa..9cfe3de902ab417b2b1b2408375d504e0f77624a 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -33,7 +33,9 @@
+ #include "base/notreached.h"
+ #include "base/scoped_observation.h"
+ #include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/stringprintf.h"
++#include "base/strings/utf_string_conversions.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+@@ -98,6 +100,8 @@
+ #include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
++#include "chrome/browser/ui/omnibox/omnibox_controller.h"
++#include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+ #include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
+ #include "chrome/browser/ui/omnibox/omnibox_view.h"
+@@ -337,12 +341,18 @@
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/accessibility/view_accessibility_utils.h"
+ #include "ui/views/animation/compositor_animation_runner.h"
++#include "ui/views/background.h"
++#include "ui/views/border.h"
+ #include "ui/views/bubble/bubble_dialog_delegate_view.h"
++#include "ui/views/controls/button/label_button.h"
+ #include "ui/views/controls/button/menu_button.h"
++#include "ui/views/controls/label.h"
+ #include "ui/views/controls/textfield/textfield.h"
++#include "ui/views/controls/textfield/textfield_controller.h"
+ #include "ui/views/controls/webview/webview.h"
+ #include "ui/views/interaction/element_tracker_views.h"
+ #include "ui/views/interaction/view_subregion_anchor.h"
++#include "ui/views/layout/box_layout.h"
+ #include "ui/views/layout/fill_layout.h"
+ #include "ui/views/view.h"
+ #include "ui/views/view_class_properties.h"
+@@ -428,6 +438,176 @@ void RecordTabLoadingSmoothness(int smoothness) {
+ // See SetDisableRevealerDelayForTesting().
+ bool g_disable_revealer_delay_for_testing = false;
+ 
++constexpr int kEvoRightRailWidth = 48;
++constexpr int kEvoClaudePanelWidth = 352;
++constexpr int kEvoCommandBarWidth = 620;
++
++}  // namespace
++
++namespace evo {
++
++class CommandBarView : public views::View, public views::TextfieldController {
++  METADATA_HEADER(CommandBarView, views::View)
++
++ public:
++  CommandBarView(base::RepeatingCallback<void(const std::u16string&)> submit,
++                 base::RepeatingClosure dismiss)
++      : submit_(std::move(submit)), dismiss_(std::move(dismiss)) {
++    SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(16), 8));
++    SetBackground(views::CreateRoundedRectBackground(ui::kColorSysSurface, 16));
++    SetBorder(views::CreateSolidBorder(1, ui::kColorSysDivider));
++    SetPaintToLayer();
++    layer()->SetFillsBoundsOpaquely(false);
++
++    auto* title =
++        AddChildView(std::make_unique<views::Label>(u"EVO COMMAND BAR"));
++    title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    title->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++
++    textfield_ = AddChildView(std::make_unique<views::Textfield>());
++    textfield_->SetController(this);
++    textfield_->SetPlaceholderText(u"Search, enter a URL, or type Claude");
++    textfield_->SetAccessibleName(u"Evo command bar");
++    textfield_->SetBorder(nullptr);
++    textfield_->SetBackgroundColor(ui::kColorSysSurface);
++    textfield_->SetPreferredSize(gfx::Size(kEvoCommandBarWidth - 32, 40));
++
++    auto* hint = AddChildView(std::make_unique<views::Label>(
++        u"Return to open  ·  Esc to close  ·  Claude opens the AI sidebar"));
++    hint->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    hint->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++    SetVisible(false);
++  }
++
++  void Show(const std::u16string& initial_text) {
++    textfield_->SetText(initial_text);
++    SetVisible(true);
++    textfield_->RequestFocus();
++    textfield_->SelectAll(false);
++  }
++
++  void Hide() {
++    SetVisible(false);
++    textfield_->SetText(std::u16string());
++  }
++
++  bool HandleKeyEvent(views::Textfield* sender,
++                      const ui::KeyEvent& event) override {
++    if (event.type() != ui::EventType::kKeyPressed) {
++      return false;
++    }
++    if (event.key_code() == ui::VKEY_ESCAPE) {
++      dismiss_.Run();
++      return true;
++    }
++    if (event.key_code() == ui::VKEY_RETURN && !sender->GetText().empty()) {
++      submit_.Run(std::u16string(sender->GetText()));
++      return true;
++    }
++    return false;
++  }
++
++ private:
++  raw_ptr<views::Textfield> textfield_ = nullptr;
++  base::RepeatingCallback<void(const std::u16string&)> submit_;
++  base::RepeatingClosure dismiss_;
++};
++
++class ClaudePanelView : public views::View {
++  METADATA_HEADER(ClaudePanelView, views::View)
++
++ public:
++  explicit ClaudePanelView(base::RepeatingClosure close) {
++    SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets(20), 14));
++    SetBackground(views::CreateSolidBackground(ui::kColorSysSurface));
++    SetBorder(views::CreateSolidSidedBorder(gfx::Insets::TLBR(0, 1, 0, 0),
++                                            ui::kColorSysDivider));
++
++    auto* header = AddChildView(std::make_unique<views::View>());
++    auto* header_layout =
++        header->SetLayoutManager(std::make_unique<views::BoxLayout>(
++            views::BoxLayout::Orientation::kHorizontal));
++    header_layout->set_cross_axis_alignment(views::LayoutAlignment::kCenter);
++    auto* title =
++        header->AddChildView(std::make_unique<views::Label>(u"✦  Claude"));
++    title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    header_layout->SetFlexForView(title, 1);
++    auto* close_button = header->AddChildView(
++        std::make_unique<views::LabelButton>(std::move(close), u"×"));
++    close_button->SetTooltipText(u"Close Claude sidebar");
++
++    auto* badge =
++        AddChildView(std::make_unique<views::Label>(u"INTEGRATION STUB"));
++    badge->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    badge->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++
++    auto* message = AddChildView(std::make_unique<views::Label>(
++        u"Claude chat will live here with the current page, selected text, "
++        u"tabs, and MCP tools available as context."));
++    message->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    message->SetMultiLine(true);
++    message->SetAllowCharacterBreak(true);
++
++    auto* context = AddChildView(
++        std::make_unique<views::Label>(u"Page context\nReady for integration"));
++    context->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++    context->SetMultiLine(true);
++    context->SetBackground(
++        views::CreateRoundedRectBackground(ui::kColorSysNeutralContainer, 10));
++
++    auto* composer = AddChildView(std::make_unique<views::Textfield>());
++    composer->SetPlaceholderText(u"Ask Claude about this page…");
++    composer->SetEnabled(false);
++    composer->SetAccessibleName(u"Claude composer placeholder");
++    SetVisible(false);
++  }
++};
++
++class RightRailView : public views::View {
++  METADATA_HEADER(RightRailView, views::View)
++
++ public:
++  RightRailView(base::RepeatingClosure toggle_claude,
++                base::RepeatingClosure open_evo_ai) {
++    auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
++        views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(12, 5), 10));
++    layout->set_cross_axis_alignment(views::LayoutAlignment::kCenter);
++    SetBackground(views::CreateSolidBackground(ui::kColorSysSurface));
++    SetBorder(views::CreateSolidSidedBorder(gfx::Insets::TLBR(0, 1, 0, 0),
++                                            ui::kColorSysDivider));
++
++    auto* claude = AddChildView(
++        std::make_unique<views::LabelButton>(std::move(toggle_claude), u"✦"));
++    claude->SetTooltipText(u"Claude chat");
++    claude->SetAccessibleName(u"Toggle Claude chat sidebar");
++
++    auto* evo_ai = AddChildView(
++        std::make_unique<views::LabelButton>(std::move(open_evo_ai), u"◈"));
++    evo_ai->SetTooltipText(u"Open Evo AI and MCP workspace");
++    evo_ai->SetAccessibleName(u"Open Evo AI");
++
++    auto* page_context = AddChildView(std::make_unique<views::LabelButton>(
++        views::Button::PressedCallback(), u"⌘"));
++    page_context->SetTooltipText(u"Page context (coming next)");
++    page_context->SetEnabled(false);
++  }
++};
++
++BEGIN_METADATA(CommandBarView)
++END_METADATA
++
++BEGIN_METADATA(ClaudePanelView)
++END_METADATA
++
++BEGIN_METADATA(RightRailView)
++END_METADATA
++
++}  // namespace evo
++
++namespace {
++
+ #if DCHECK_IS_ON()
+ 
+ std::string FocusListToString(views::View* view) {
+@@ -1010,6 +1190,27 @@ BrowserView::BrowserView(Browser* browser)
+   window_scrim_view_ = AddChildView(std::make_unique<ScrimView>());
+   window_scrim_view_->layer()->SetName("WindowScrimView");
+ 
++  // Evo's right rail is permanent browser chrome. Its Claude panel and command
++  // bar are intentionally native Views so extensions and WebContents continue
++  // to run in an unmodified Chromium content surface.
++  evo_right_rail_ = AddChildView(std::make_unique<evo::RightRailView>(
++      base::BindRepeating(&BrowserView::ToggleEvoClaudePanel,
++                          base::Unretained(this)),
++      base::BindRepeating(&BrowserView::OpenEvoAI, base::Unretained(this))));
++  evo_right_rail_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++
++  evo_claude_panel_ =
++      AddChildView(std::make_unique<evo::ClaudePanelView>(base::BindRepeating(
++          &BrowserView::ToggleEvoClaudePanel, base::Unretained(this))));
++  evo_claude_panel_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++
++  evo_command_bar_ = AddChildView(std::make_unique<evo::CommandBarView>(
++      base::BindRepeating(&BrowserView::SubmitEvoCommand,
++                          base::Unretained(this)),
++      base::BindRepeating(&BrowserView::HideEvoCommandBar,
++                          base::Unretained(this))));
++  evo_command_bar_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++
+ #if BUILDFLAG(IS_WIN)
+   // Create a custom JumpList and add it to an observer of TabRestoreService
+   // so we can update the custom JumpList when a tab is added or removed.
+@@ -4746,6 +4947,43 @@ void BrowserView::Layout(PassKey) {
+ 
+   LayoutSuperclass<views::View>(this);
+ 
++  if (evo_right_rail_ && contents_container_) {
++    gfx::Rect original_contents_bounds = contents_container_->bounds();
++    const int panel_width = evo_claude_panel_->GetVisible()
++                                ? std::min(kEvoClaudePanelWidth,
++                                           original_contents_bounds.width() / 2)
++                                : 0;
++    const int shell_width = kEvoRightRailWidth + panel_width;
++    if (original_contents_bounds.width() > shell_width) {
++      gfx::Rect web_contents_bounds = original_contents_bounds;
++      web_contents_bounds.set_width(original_contents_bounds.width() -
++                                    shell_width);
++      contents_container_->SetBoundsRect(web_contents_bounds);
++
++      if (panel_width) {
++        evo_claude_panel_->SetBounds(web_contents_bounds.right(),
++                                     original_contents_bounds.y(), panel_width,
++                                     original_contents_bounds.height());
++      } else {
++        evo_claude_panel_->SetBounds(0, 0, 0, 0);
++      }
++      evo_right_rail_->SetBounds(
++          original_contents_bounds.right() - kEvoRightRailWidth,
++          original_contents_bounds.y(), kEvoRightRailWidth,
++          original_contents_bounds.height());
++    }
++
++    if (evo_command_bar_->GetVisible()) {
++      const int command_width =
++          std::min(kEvoCommandBarWidth, contents_container_->width() - 40);
++      const int command_height = evo_command_bar_->GetPreferredSize().height();
++      evo_command_bar_->SetBounds(
++          contents_container_->x() +
++              (contents_container_->width() - command_width) / 2,
++          contents_container_->y() + 32, command_width, command_height);
++    }
++  }
++
+   // TODO(jamescook): Why was this in the middle of layout code?
+   toolbar_->location_bar()->UpdateFocusBehavior(IsToolbarVisible());
+   GetFrameView()->UpdateMinimumSize();
+@@ -5086,6 +5324,21 @@ bool BrowserView::AcceleratorPressed(const ui::Accelerator& accelerator) {
+ 
+   UpdateAcceleratorMetrics(accelerator, command_id);
+ 
++  if (GetIsNormalType() &&
++      (command_id == IDC_FOCUS_LOCATION || command_id == IDC_FOCUS_SEARCH)) {
++    ShowEvoCommandBar(command_id == IDC_FOCUS_LOCATION);
++    return true;
++  }
++
++  if (GetIsNormalType() && command_id == IDC_NEW_TAB) {
++    const bool handled = chrome::ExecuteCommand(browser_.get(), command_id,
++                                                accelerator.time_stamp());
++    if (handled) {
++      ShowEvoCommandBar(/*include_current_url=*/false);
++    }
++    return handled;
++  }
++
+   if (command_id == IDC_CLEAR_BROWSING_DATA) {
+     views::ElementTrackerViews::GetInstance()->NotifyCustomEvent(
+         browsing_data_important_sites_util::
+@@ -5097,6 +5350,54 @@ bool BrowserView::AcceleratorPressed(const ui::Accelerator& accelerator) {
+                                 accelerator.time_stamp());
+ }
+ 
++void BrowserView::ShowEvoCommandBar(bool include_current_url) {
++  std::u16string initial_text;
++  if (include_current_url) {
++    if (WebContents* contents =
++            browser_->tab_strip_model()->GetActiveWebContents()) {
++      const GURL& url = contents->GetLastCommittedURL();
++      if (url.is_valid() && !url.SchemeIs("chrome") && !url.SchemeIs("about")) {
++        initial_text = base::UTF8ToUTF16(url.spec());
++      }
++    }
++  }
++  evo_command_bar_->Show(initial_text);
++  InvalidateLayout();
++}
++
++void BrowserView::HideEvoCommandBar() {
++  evo_command_bar_->Hide();
++  if (WebContents* contents =
++          browser_->tab_strip_model()->GetActiveWebContents()) {
++    contents->Focus();
++  }
++}
++
++void BrowserView::SubmitEvoCommand(const std::u16string& command) {
++  const std::u16string normalized = base::ToLowerASCII(command);
++  if (normalized == u"claude" || normalized == u"> claude") {
++    HideEvoCommandBar();
++    ToggleEvoClaudePanel();
++    return;
++  }
++
++  HideEvoCommandBar();
++  OmniboxEditModel* model =
++      GetLocationBarView()->GetOmniboxController()->edit_model();
++  if (model->CanPasteAndGo(command)) {
++    model->PasteAndGo(command, base::TimeTicks::Now());
++  }
++}
++
++void BrowserView::ToggleEvoClaudePanel() {
++  evo_claude_panel_->SetVisible(!evo_claude_panel_->GetVisible());
++  InvalidateLayout();
++}
++
++void BrowserView::OpenEvoAI() {
++  chrome::AddTabAt(browser_.get(), GURL("chrome://evo-ai"), -1, true);
++}
++
+ ///////////////////////////////////////////////////////////////////////////////
+ // BrowserView, infobars::InfoBarContainer::Delegate overrides:
+ 
+diff --git a/chrome/browser/ui/views/frame/browser_view.h b/chrome/browser/ui/views/frame/browser_view.h
+index ef13f8f68542dcb77ff97b64bc0f21ea171eb20c..b06443cf6b0c2a74d91eca0b7778838105244c18 100644
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -98,6 +98,12 @@ class TopControlsSlideControllerTest;
+ class VerticalTabStripRegionView;
+ class WebAppFrameToolbarView;
+ 
++namespace evo {
++class ClaudePanelView;
++class CommandBarView;
++class RightRailView;
++}  // namespace evo
++
+ namespace gfx {
+ class AnimationRunner;
+ }  // namespace gfx
+@@ -899,6 +905,12 @@ class BrowserView : public BrowserWindow,
+ 
+   void OnProjectsPanelStateChanged(ProjectsPanelStateController* controller);
+ 
++  void ShowEvoCommandBar(bool include_current_url);
++  void HideEvoCommandBar();
++  void SubmitEvoCommand(const std::u16string& command);
++  void ToggleEvoClaudePanel();
++  void OpenEvoAI();
++
+   // Callback for the loading animation(s) associated with this view.
+   void LoadingAnimationTimerCallback();
+   void LoadingAnimationCallback(base::TimeTicks timestamp);
+@@ -1263,6 +1275,12 @@ class BrowserView : public BrowserWindow,
+   // should exist if and only if the side_panel_coordinator is created.
+   raw_ptr<SidePanel> side_panel_ = nullptr;
+ 
++  // Evo's browser-shell surfaces. These are intentionally owned by the
++  // BrowserView so they remain stable as WebContents and Spaces change.
++  raw_ptr<evo::RightRailView> evo_right_rail_ = nullptr;
++  raw_ptr<evo::ClaudePanelView> evo_claude_panel_ = nullptr;
++  raw_ptr<evo::CommandBarView> evo_command_bar_ = nullptr;
++
+   // The handler responsible for showing autofill bubbles.
+   std::unique_ptr<autofill::AutofillBubbleHandler> autofill_bubble_handler_;
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.cc
+index 368347c0fbbecd81cf33954b671c46ca7e40f5f8..ca70785ad14f47eef35bc0659a5d82fa35ed0f99 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.cc
+@@ -54,8 +54,6 @@ constexpr int kTabVerticalPadding = 2;
+ constexpr int kGroupLineWidth = 2;
+ constexpr int kGroupLineCollapsedLeadingPadding = 6;
+ constexpr int kGroupLineCornerRadius = 4;
+-constexpr int kGroupHeaderHeight = 26;
+-constexpr int kGroupHeaderVerticalMargin = 4;
+ 
+ const TabGroup* GetTabGroupFromNode(TabCollectionNode* node) {
+   CHECK(node);
+@@ -104,6 +102,12 @@ VerticalTabGroupView::VerticalTabGroupView(TabCollectionNode* collection_node)
+           base::BindRepeating(&VerticalTabGroupView::OnDataChanged,
+                               base::Unretained(this)));
+   OnDataChanged();
++
++  // Evo models Arc-style Spaces with Chromium tab groups. The Space picker in
++  // the bottom rail owns the group identity, so repeating a group header and
++  // accent line above every Space's tabs is visual noise.
++  group_header_->SetVisible(false);
++  group_line_->SetVisible(false);
+ }
+ 
+ VerticalTabGroupView::~VerticalTabGroupView() = default;
+@@ -126,7 +130,7 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+     const views::SizeBounds& size_bounds) const {
+   views::ProposedLayout layouts;
+   int width = 0;
+-  int height = kGroupHeaderVerticalMargin;
++  int height = 0;
+   auto tab_strip_collapse_state = GetTabStripCollapseState();
+ 
+   gfx::Rect header_bounds;
+@@ -143,8 +147,8 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+         GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding));
+   }
+ 
+-  header_bounds.set_y(height);
+-  header_bounds.set_height(kGroupHeaderHeight);
++  header_bounds.set_y(0);
++  header_bounds.set_height(0);
+   // If width is bounded, the group header should respect the width constraints
+   // and take up the available width excluding trailing horizontal padding.
+   if (size_bounds.width().is_bounded()) {
+@@ -152,8 +156,6 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+   }
+   layouts.child_layouts.emplace_back(
+       group_header_.get(), group_header_->GetVisible(), header_bounds);
+-  height +=
+-      header_bounds.height() + kGroupHeaderVerticalMargin + kTabVerticalPadding;
+   width = std::max(width, header_bounds.width());
+ 
+   // If the tab strip is not collapsed then the group line is below and left
+@@ -179,11 +181,8 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+     bounds.set_y(drag_data ? drag_data->offset.y() : height);
+ 
+     // If the tab strip is not collapsed then the groups tabs should be inset.
+-    bounds.set_x(tab_strip_collapse_state !=
+-                         tabs::VerticalTabStripCollapseState::kExpanded
+-                     ? GetLayoutConstant(
+-                           LayoutConstant::kVerticalTabStripHorizontalPadding)
+-                     : VerticalTabGroupView::kTabLeadingPadding);
++    bounds.set_x(
++        GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding));
+     // If width is bounded, child views should respect the width constraints
+     // and take up the available width excluding trailing horizontal padding.
+     if (size_bounds.width().is_bounded()) {
+@@ -193,8 +192,10 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+     height += bounds.height() + kTabVerticalPadding;
+     width = std::max(width, bounds.width());
+   }
+-  // Remove excess padding.
+-  height -= kTabVerticalPadding;
++  // Remove excess padding when at least one tab was laid out.
++  if (!children.empty()) {
++    height -= kTabVerticalPadding;
++  }
+ 
+   if (!children.empty()) {
+     group_line_bounds.set_height(height - group_line_bounds.y());
+@@ -202,16 +203,12 @@ views::ProposedLayout VerticalTabGroupView::CalculateProposedLayout(
+   layouts.child_layouts.emplace_back(
+       group_line_.get(), group_line_->GetVisible(), group_line_bounds);
+ 
+-  // Add extra padding below the group if not collapsed.
+   const bool is_group_collapsed = IsCollapsed();
+-  if (!is_group_collapsed) {
++  if (!is_group_collapsed && !children.empty()) {
+     height += kTabVerticalPadding;
+   }
+ 
+-  layouts.host_size = gfx::Size(
+-      width, is_group_collapsed
+-                 ? header_bounds.height() + (2 * kGroupHeaderVerticalMargin)
+-                 : height);
++  layouts.host_size = gfx::Size(width, is_group_collapsed ? 0 : height);
+   return layouts;
+ }
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+index 5e97c88517259a4362ca3f7802ee2372d856f114..c7cd20295dbbec49de48a0d43c62349609ab96b4 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -221,6 +221,7 @@ void VerticalTabStripBottomContainer::RebuildSpaceButtons() {
+         u"•");
+     button->SetTooltipText(title);
+     button->SetMinSize(gfx::Size(28, 28));
++    button->set_context_menu_controller(this);
+     views::LabelButton* button_ptr =
+         space_buttons_->AddChildView(std::move(button));
+     group_space_buttons_.emplace_back(group, button_ptr);
+@@ -313,6 +314,14 @@ void VerticalTabStripBottomContainer::ShowContextMenuForViewImpl(
+     View* source,
+     const gfx::Point& point,
+     ui::mojom::MenuSourceType source_type) {
++  for (const auto& [group, button] : group_space_buttons_) {
++    if (source == button) {
++      SelectSpace(group);
++      tab_strip_model_->OpenTabGroupEditor(group);
++      return;
++    }
++  }
++
+   if (features::IsTabGroupMenuMoreEntryPointsEnabled()) {
+     context_menu_model_ = std::make_unique<NewTabButtonMenuModel>(browser_);
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
+index d09396a6077ef46c9f334721af66111800b445c4..162d0c407cfd057f06630339505c2c07173d9a05 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
+@@ -26,6 +26,7 @@
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/color/color_id.h"
+ #include "ui/views/background.h"
++#include "ui/views/controls/label.h"
+ #include "ui/views/controls/scroll_view.h"
+ #include "ui/views/controls/separator.h"
+ #include "ui/views/layout/delegating_layout_manager.h"
+@@ -102,6 +103,10 @@ VerticalTabStripView::VerticalTabStripView(TabCollectionNode* collection_node)
+   SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
+   SetProperty(views::kElementIdentifierKey, kTabStripElementId);
+ 
++  favorites_label_ = AddChildView(std::make_unique<views::Label>(u"FAVORITES"));
++  favorites_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++  favorites_label_->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++
+   pinned_tabs_scroll_view_ = AddChildView(std::make_unique<views::ScrollView>(
+       views::ScrollView::ScrollWithLayers::kEnabled));
+   SetScrollViewProperties(pinned_tabs_scroll_view_);
+@@ -144,6 +149,20 @@ views::ProposedLayout VerticalTabStripView::CalculateProposedLayout(
+ 
+   int y = 0;
+ 
++  if (favorites_label_->GetVisible()) {
++    constexpr int kFavoritesLabelHeight = 24;
++    gfx::Rect favorites_label_bounds(
++        region_horizontal_padding, y,
++        size_bounds.width().value() - 2 * region_horizontal_padding,
++        kFavoritesLabelHeight);
++    layouts.child_layouts.emplace_back(favorites_label_.get(), true,
++                                       favorites_label_bounds);
++    y += kFavoritesLabelHeight;
++  } else {
++    layouts.child_layouts.emplace_back(favorites_label_.get(), false,
++                                       gfx::Rect());
++  }
++
+   // Determine container preferred heights.
+   views::SizeBounds pinned_tab_container_size_bounds =
+       size_bounds.Inset(gfx::Insets::TLBR(0, region_horizontal_padding, 0, 0));
+@@ -361,6 +380,7 @@ VerticalTabStripView::GetUnpinnedTabsContainer() {
+ void VerticalTabStripView::SetCollapsedState(bool is_collapsed) {
+   if (is_collapsed != is_collapsed_) {
+     is_collapsed_ = is_collapsed;
++    favorites_label_->SetVisible(!is_collapsed_);
+     InvalidateLayout();
+   }
+ }
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.h
+index 0fb453cf2103dda760e79848a17b504ef4dce406..8d2c1b0633f05e1f967e2e87a07b69b9a12aa07a 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.h
+@@ -18,6 +18,7 @@ class VerticalPinnedTabContainerView;
+ class VerticalUnpinnedTabContainerView;
+ 
+ namespace views {
++class Label;
+ class ScrollView;
+ class Separator;
+ }  // namespace views
+@@ -98,6 +99,7 @@ class VerticalTabStripView final : public views::View,
+   void HideHoverCardOnScroll();
+ 
+   raw_ptr<TabCollectionNode> collection_node_ = nullptr;
++  raw_ptr<views::Label> favorites_label_ = nullptr;
+   raw_ptr<views::ScrollView> pinned_tabs_scroll_view_ = nullptr;
+   raw_ptr<VerticalPinnedTabContainerView> pinned_tabs_container_view_ = nullptr;
+   raw_ptr<views::Separator> tabs_separator_ = nullptr;

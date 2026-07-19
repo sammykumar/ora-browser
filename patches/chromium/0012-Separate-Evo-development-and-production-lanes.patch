@@ -1,0 +1,285 @@
+From 76a7e3182c7aec44d311ac23fad25382350a580c Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sun, 19 Jul 2026 07:26:19 -0500
+Subject: [PATCH 12/12] Separate Evo development and production lanes
+
+---
+ .../evo_runtime/evo_runtime_manager.cc        |  7 +++
+ evo/README.md                                 | 58 ++++++++++++++++---
+ evo/build-dev.sh                              | 37 ++++++++++++
+ evo/build.sh                                  |  5 +-
+ evo/install-production.sh                     | 25 ++++++++
+ evo/run-dev.sh                                | 17 ++++++
+ evo/run.sh                                    | 12 ++--
+ evo/sign.sh                                   | 29 ++++++++++
+ 8 files changed, 169 insertions(+), 21 deletions(-)
+ create mode 100755 evo/build-dev.sh
+ create mode 100755 evo/install-production.sh
+ create mode 100755 evo/run-dev.sh
+ create mode 100755 evo/sign.sh
+
+diff --git a/chrome/browser/evo_runtime/evo_runtime_manager.cc b/chrome/browser/evo_runtime/evo_runtime_manager.cc
+index 3e531fb2d06249fabf3f3cf617bdd74e696a765e..5f3c4b579f36b725fd99d79f53b1879847a1f699 100644
+--- a/chrome/browser/evo_runtime/evo_runtime_manager.cc
++++ b/chrome/browser/evo_runtime/evo_runtime_manager.cc
+@@ -160,6 +160,13 @@ EvoRuntimeManager::LaunchResult EvoRuntimeManager::LaunchOnBlockingThread(
+   options.environment["EVO_RUNTIME_PORT"] = "0";
+   options.environment["EVO_RUNTIME_READY_FILE"] =
+       result.ready_file.AsUTF8Unsafe();
++  std::unique_ptr<base::Environment> environment = base::Environment::Create();
++  for (const std::string variable : {"EVO_RUNTIME_STATE_DIR",
++                                     "EVO_SIDEKICK_WORKSPACE"}) {
++    if (std::optional<std::string> value = environment->GetVar(variable)) {
++      options.environment[variable] = std::move(*value);
++    }
++  }
+   result.process = base::LaunchProcess(base::CommandLine(binary), options);
+   if (!result.process.IsValid()) {
+     result.error = "Failed to launch the bundled Evo Runtime";
+diff --git a/evo/README.md b/evo/README.md
+index 6d6446ad312806d95f7a159eaa5b9cc4a0f484cd..281e38abadaf6c2ae03fb9001d8189a8dab0cd61 100644
+--- a/evo/README.md
++++ b/evo/README.md
+@@ -2,27 +2,67 @@
+ 
+ This directory holds the small, Evo-specific layer over Chromium.
+ 
+-## Build
++## Development and production lanes
++
++Evo deliberately uses separate development and production applications and
++profiles:
++
++| Lane | Application | Profile | Who tests it |
++|---|---|---|---|
++| Development | `out/EvoDev/Evo Dev.app` | `~/Library/Application Support/Evo Chromium Dev` | Codex/automated testing |
++| Production | `/Applications/Evo.app` | `~/Library/Application Support/Evo Chromium` | Sam/daily dogfooding |
++
++The development launcher also passes `--use-mock-keychain`, so automated tests
++cannot read or modify production cookies, passwords, extensions, or keychain
++material. Its runtime mappings live in
++`~/Library/Application Support/Evo Runtime Dev`, and its Sidekick workspace is
++`~/.evo/sidekick-dev`; production continues to use Evo Runtime's normal global
++state and `~/.evo/sidekick`. Codex must test the development lane and must not
++launch or reset the production profile. Sam performs final acceptance testing
++in production.
++
++Both applications are signed with the stable Apple Development identity
++`Apple Development: Munusamy Kumar (VXL54TYT5T)`. Set
++`EVO_CODESIGN_IDENTITY` only when intentionally using another valid identity.
++
++## Build and test development
+ 
+ ```bash
+-./evo/build.sh
++./evo/run-dev.sh
++# ./evo/run.sh is an alias for the same isolated lane.
+ ```
+ 
++This incrementally builds Chromium, creates the separately branded development
++application, signs it, and launches it with the development profile.
++
++## Promote to production
++
++```bash
++./evo/install-production.sh
++```
++
++This installs the signed build at `/Applications/Evo.app` without touching the
++production profile. The installer packages the component-build libraries into
++the application so the production copy is self-contained. Evo must be closed
++while it is replaced. Sam then launches and tests the production application
++normally.
++
+ The first build compiles Chromium. Later builds are incremental and normally
+-compile only the affected targets before relinking the application.
++compile only affected targets before relinking the application.
+ 
+ ## Run
+ 
+ ```bash
+-./evo/run.sh
++open /Applications/Evo.app
+ ```
+ 
+-The macOS application is generated at `out/Evo/Evo.app`. Its browser data is
+-kept separately in `~/Library/Application Support/Evo Chromium` so it does not
+-collide with the earlier Swift/CEF Evo experiments.
++The production browser data remains in
++`~/Library/Application Support/Evo Chromium`, preserving extensions,
++preferences, cookies, spaces, and other dogfooding state across upgrades.
+ 
+-Set `DEPOT_TOOLS_DIR`, `DEVELOPER_DIR`, or `EVO_OUT_DIR` to override the local
+-defaults used by the scripts.
++Set `DEPOT_TOOLS_DIR`, `DEVELOPER_DIR`, `EVO_OUT_DIR`, `EVO_DEV_OUT_DIR`,
++`EVO_DEV_PROFILE_DIR`, `EVO_DEV_RUNTIME_STATE_DIR`,
++`EVO_DEV_SIDEKICK_WORKSPACE`, or `EVO_INSTALL_PATH` to override local defaults.
+ 
+ ## Planning
+ 
+diff --git a/evo/build-dev.sh b/evo/build-dev.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b51c6b2809ed19545300c096c404ecd5e14a057b
+--- /dev/null
++++ b/evo/build-dev.sh
+@@ -0,0 +1,37 @@
++#!/usr/bin/env bash
++
++set -euo pipefail
++
++evo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++src_dir="$(cd "${evo_dir}/.." && pwd)"
++production_out_dir="${EVO_OUT_DIR:-${src_dir}/out/Evo}"
++dev_out_dir="${EVO_DEV_OUT_DIR:-${src_dir}/out/EvoDev}"
++production_app="${production_out_dir}/Evo.app"
++dev_app="${dev_out_dir}/Evo Dev.app"
++dev_runtime_state_dir="${EVO_DEV_RUNTIME_STATE_DIR:-${HOME}/Library/Application Support/Evo Runtime Dev}"
++dev_sidekick_workspace="${EVO_DEV_SIDEKICK_WORKSPACE:-${HOME}/.evo/sidekick-dev}"
++
++"${evo_dir}/build.sh"
++
++mkdir -p "${dev_out_dir}"
++ditto "${production_app}" "${dev_app}"
++while IFS= read -r -d '' library; do
++    ln -sfn "${library}" "${dev_out_dir}/$(basename "${library}")"
++done < <(find "${production_out_dir}" -maxdepth 1 -type f -name '*.dylib' -print0)
++/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Evo Dev" \
++    "${dev_app}/Contents/Info.plist"
++/usr/libexec/PlistBuddy -c "Set :CFBundleName Evo Dev" \
++    "${dev_app}/Contents/Info.plist"
++/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.skproductions.evo.dev" \
++    "${dev_app}/Contents/Info.plist"
++/usr/libexec/PlistBuddy -c "Set :CrProductDirName Evo Chromium Dev" \
++    "${dev_app}/Contents/Info.plist"
++/usr/libexec/PlistBuddy -c \
++    "Add :LSEnvironment:EVO_RUNTIME_STATE_DIR string ${dev_runtime_state_dir}" \
++    "${dev_app}/Contents/Info.plist"
++/usr/libexec/PlistBuddy -c \
++    "Add :LSEnvironment:EVO_SIDEKICK_WORKSPACE string ${dev_sidekick_workspace}" \
++    "${dev_app}/Contents/Info.plist"
++
++"${evo_dir}/sign.sh" "${dev_app}"
++echo "Development app: ${dev_app}"
+diff --git a/evo/build.sh b/evo/build.sh
+index 5285d71b9cdcdb140789140a0768821538cd4600..3af9b616ab3b0082aa4e04ba7194051b76b0192d 100755
+--- a/evo/build.sh
++++ b/evo/build.sh
+@@ -39,7 +39,4 @@ runtime_resources="${out_dir}/Evo.app/Contents/Resources"
+ mkdir -p "${runtime_resources}"
+ cp "${runtime_dir}/dist/evo-runtime" "${runtime_resources}/evo-runtime"
+ chmod 0755 "${runtime_resources}/evo-runtime"
+-if command -v codesign >/dev/null 2>&1; then
+-    codesign --force --sign - "${runtime_resources}/evo-runtime" >/dev/null
+-    codesign --force --deep --sign - "${out_dir}/Evo.app" >/dev/null
+-fi
++"${evo_dir}/sign.sh" "${out_dir}/Evo.app"
+diff --git a/evo/install-production.sh b/evo/install-production.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b6c71b35f6999730b27cf9389050486831471719
+--- /dev/null
++++ b/evo/install-production.sh
+@@ -0,0 +1,25 @@
++#!/usr/bin/env bash
++
++set -euo pipefail
++
++evo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++src_dir="$(cd "${evo_dir}/.." && pwd)"
++out_dir="${EVO_OUT_DIR:-${src_dir}/out/Evo}"
++source_app="${out_dir}/Evo.app"
++install_app="${EVO_INSTALL_PATH:-/Applications/Evo.app}"
++
++"${evo_dir}/build.sh"
++
++if pgrep -f "${install_app}/Contents/MacOS/Evo" >/dev/null 2>&1; then
++    echo "Quit the production Evo app before installing a new build." >&2
++    exit 1
++fi
++
++ditto "${source_app}" "${install_app}"
++production_frameworks="${install_app}/Contents/Frameworks"
++while IFS= read -r -d '' library; do
++    ditto "${library}" "${production_frameworks}/$(basename "${library}")"
++done < <(find "${out_dir}" -maxdepth 1 -type f -name '*.dylib' -print0)
++
++"${evo_dir}/sign.sh" "${install_app}"
++echo "Production app installed at ${install_app}"
+diff --git a/evo/run-dev.sh b/evo/run-dev.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..94af05b1b2cd027120555d985dc3328275910ddd
+--- /dev/null
++++ b/evo/run-dev.sh
+@@ -0,0 +1,17 @@
++#!/usr/bin/env bash
++
++set -euo pipefail
++
++evo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++src_dir="$(cd "${evo_dir}/.." && pwd)"
++dev_out_dir="${EVO_DEV_OUT_DIR:-${src_dir}/out/EvoDev}"
++dev_app="${dev_out_dir}/Evo Dev.app"
++dev_profile_dir="${EVO_DEV_PROFILE_DIR:-${HOME}/Library/Application Support/Evo Chromium Dev}"
++
++"${evo_dir}/build-dev.sh"
++
++open -n "${dev_app}" --args \
++    "--user-data-dir=${dev_profile_dir}" \
++    --use-mock-keychain \
++    --no-first-run \
++    "$@"
+diff --git a/evo/run.sh b/evo/run.sh
+index 79e3d847532458a91c2469dc79233967c12ffe37..b9561d7be37ecb86cb23d91b6fd93767dbb1f8f1 100755
+--- a/evo/run.sh
++++ b/evo/run.sh
+@@ -3,12 +3,8 @@
+ set -euo pipefail
+ 
+ evo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+-src_dir="$(cd "${evo_dir}/.." && pwd)"
+-out_dir="${EVO_OUT_DIR:-${src_dir}/out/Evo}"
+-app_path="${out_dir}/Evo.app"
+ 
+-if [[ ! -d "${app_path}" ]]; then
+-    "${evo_dir}/build.sh"
+-fi
+-
+-open "${app_path}" --args "$@"
++# The generic developer entry point is intentionally routed to the isolated
++# development lane. Production is installed with install-production.sh and is
++# launched manually by its owner from /Applications.
++exec "${evo_dir}/run-dev.sh" "$@"
+diff --git a/evo/sign.sh b/evo/sign.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..180d55091c45707c5845b3ba5abc1c22dd9b8c94
+--- /dev/null
++++ b/evo/sign.sh
+@@ -0,0 +1,29 @@
++#!/usr/bin/env bash
++
++set -euo pipefail
++
++if [[ $# -ne 1 ]]; then
++    echo "Usage: $0 /absolute/path/to/Evo.app" >&2
++    exit 2
++fi
++
++app_path="$1"
++signing_identity="${EVO_CODESIGN_IDENTITY:-Apple Development: Munusamy Kumar (VXL54TYT5T)}"
++runtime_path="${app_path}/Contents/Resources/evo-runtime"
++
++if [[ ! -d "${app_path}" ]] || [[ ! -x "${runtime_path}" ]]; then
++    echo "Evo app or bundled runtime was not found at ${app_path}." >&2
++    exit 1
++fi
++
++if ! security find-identity -v -p codesigning | grep -Fq "\"${signing_identity}\""; then
++    echo "The requested signing identity is not available: ${signing_identity}" >&2
++    echo "Set EVO_CODESIGN_IDENTITY to a valid Apple Development identity." >&2
++    exit 1
++fi
++
++codesign --force --sign "${signing_identity}" --timestamp=none \
++    "${runtime_path}" >/dev/null
++codesign --force --deep --sign "${signing_identity}" --timestamp=none \
++    --preserve-metadata=entitlements,flags,runtime "${app_path}" >/dev/null
++codesign --verify --deep --strict "${app_path}"

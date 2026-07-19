@@ -1,0 +1,584 @@
+From eca2dcc5db3f672a189d13b29e8f334d09acdff9 Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 17:11:46 -0500
+Subject: [PATCH 05/12] evo: implement Arc-style Space switching
+
+---
+ chrome/browser/ui/ui_features.cc              |   7 +-
+ .../frame/vertical_tab_strip_region_view.cc   |  57 ++++-
+ .../frame/vertical_tab_strip_region_view.h    |   2 +
+ .../tabs/shared/tab_strip_combo_button.cc     |   4 +-
+ .../vertical_tab_strip_bottom_container.cc    | 237 +++++++++++++++++-
+ .../vertical_tab_strip_bottom_container.h     |  38 ++-
+ .../saved_tab_groups/public/features.cc       |   7 +-
+ 7 files changed, 336 insertions(+), 16 deletions(-)
+
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index 5de1dce2f4ec8f4ba9bf0e83a3d74d544833eb3c..5e8ecc3874aecf866f71eb9b193568e8775b7d28 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -540,13 +540,14 @@ BASE_FEATURE_PARAM(std::string,
+                    "mock_json_path",
+                    "");
+ 
+-BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_DISABLED_BY_DEFAULT);
++// Evo Spaces use focused tab groups as mutually exclusive workspaces.
++BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE_PARAM(bool,
+                    kTabGroupsFocusingPinnedTabs,
+                    &kTabGroupsFocusing,
+                    "tab_groups_focusing_pinned_tabs",
+-                   false);
++                   true);
+ 
+ BASE_FEATURE_PARAM(bool,
+                    kTabGroupsFocusingAutoClose,
+@@ -558,7 +559,7 @@ BASE_FEATURE_PARAM(bool,
+                    kTabGroupsFocusingDefaultToFocused,
+                    &kTabGroupsFocusing,
+                    "tab_groups_focusing_default_to_focused",
+-                   false);
++                   true);
+ 
+ BASE_FEATURE(kVerticalTabsGrabHandleRemoval, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 9b58cb369f0ff242b1623b8f48414c9b6e631b7f..ac6da1c2923ec3d546c118198cae78a36ecfb9eb 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ 
+ #include <algorithm>
++#include <cmath>
+ #include <optional>
+ #include <variant>
+ 
+@@ -113,6 +114,9 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+       hover_tab_selector_(
+           std::make_unique<HoverTabSelector>(tab_strip_model_)) {
+   SetNotifyEnterExitOnChild(true);
++  // Capture horizontal trackpad scrolls anywhere inside the sidebar, including
++  // child tab scroll views.
++  AddPreTargetHandler(this);
+   // For z-ordering purposes this needs to be on a layer.
+   SetPaintToLayer();
+   // Because corners may be transparent, this must be set to false.
+@@ -200,6 +204,8 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+ }
+ 
+ VerticalTabStripRegionView::~VerticalTabStripRegionView() {
++  RemovePreTargetHandler(this);
++
+   for (const auto& lock : hover_locks_) {
+     lock->ClearRegionViewOnDestruction();
+   }
+@@ -479,6 +485,29 @@ bool VerticalTabStripRegionView::OnKeyPressed(const ui::KeyEvent& event) {
+   return TabStripRegionView::OnKeyPressed(event);
+ }
+ 
++void VerticalTabStripRegionView::OnScrollEvent(ui::ScrollEvent* event) {
++  if (event->handled()) {
++    return;
++  }
++  const float horizontal = event->x_offset();
++  const float vertical = event->y_offset();
++  if (std::abs(horizontal) > std::abs(vertical) * 1.25f) {
++    evo_space_swipe_offset_ += horizontal;
++    if (std::abs(evo_space_swipe_offset_) >= 80.0f) {
++      bottom_button_container_->CycleSpace(evo_space_swipe_offset_ > 0 ? 1
++                                                                       : -1);
++      evo_space_swipe_offset_ = 0.0f;
++    }
++    event->SetHandled();
++    return;
++  }
++
++  if (std::abs(vertical) > std::abs(horizontal)) {
++    evo_space_swipe_offset_ = 0.0f;
++  }
++  TabStripRegionView::OnScrollEvent(event);
++}
++
+ void VerticalTabStripRegionView::OnMouseEntered(const ui::MouseEvent& event) {
+   if (mouse_exit_timer_.IsRunning()) {
+     mouse_exit_timer_.Stop();
+@@ -677,15 +706,31 @@ views::View* VerticalTabStripRegionView::GetTabGroupAnchorView(
+ void VerticalTabStripRegionView::OnTabGroupFocusChanged(
+     std::optional<tab_groups::TabGroupId> new_focused_group_id,
+     std::optional<tab_groups::TabGroupId> old_focused_group_id) {
+-  top_button_container_->GetUnfocusButton()->SetVisible(
+-      new_focused_group_id.has_value());
+-  // Temporarily, we are updating the visibility of the collapse action to be
+-  // inverse to the unfocus button because of horizontal space constraints in
+-  // the top container.
++  // Evo exposes focused groups as Spaces through the bottom selector. Hide
++  // Chromium's temporary unfocus control and preserve the normal collapse
++  // button in the sidebar header.
++  top_button_container_->GetUnfocusButton()->SetVisible(false);
+   actions::ActionItem* collapse_action =
+       actions::ActionManager::Get().FindAction(kActionToggleCollapseVertical,
+                                                root_action_item_);
+-  collapse_action->SetVisible(!new_focused_group_id.has_value());
++  collapse_action->SetVisible(true);
++
++  // Chromium's horizontal tab strip collapses non-focused groups, but its
++  // vertical implementation leaves them visible. Evo Spaces require mutually
++  // exclusive workspaces, so explicitly hide every non-active group view.
++  if (root_node_ && tab_strip_model_->group_model()) {
++    for (const tab_groups::TabGroupId& group_id :
++         tab_strip_model_->group_model()->ListTabGroups()) {
++      TabGroup* group = tab_strip_model_->group_model()->GetTabGroup(group_id);
++      TabCollectionNode* group_node =
++          root_node_->GetNodeForHandle(group->GetCollectionHandle());
++      if (group_node && group_node->view()) {
++        group_node->view()->SetVisible(!new_focused_group_id.has_value() ||
++                                       group_id == new_focused_group_id);
++      }
++    }
++  }
++  InvalidateLayout();
+ }
+ 
+ TabDragContext* VerticalTabStripRegionView::GetDragContext() {
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+index c2614d5dadaa8eec25c57d1e526b244fe180cdc6..c5fc5d641484b1f086909e2f9a15bbf1856b3238 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -122,6 +122,7 @@ class VerticalTabStripRegionView final
+   gfx::Size CalculatePreferredSize(
+       const views::SizeBounds& available_size) const override;
+   bool OnKeyPressed(const ui::KeyEvent& event) override;
++  void OnScrollEvent(ui::ScrollEvent* event) override;
+   void OnMouseEntered(const ui::MouseEvent& event) override;
+   void OnMouseMoved(const ui::MouseEvent& event) override;
+   void OnMouseExited(const ui::MouseEvent& event) override;
+@@ -304,6 +305,7 @@ class VerticalTabStripRegionView final
+   raw_ptr<views::Separator> top_button_separator_ = nullptr;
+   raw_ptr<VerticalTabStripView> tab_strip_view_ = nullptr;
+   raw_ptr<VerticalTabStripBottomContainer> bottom_button_container_ = nullptr;
++  float evo_space_swipe_offset_ = 0.0f;
+   raw_ptr<views::View> gemini_button_ = nullptr;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
+diff --git a/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc b/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
+index ca6e255c21251b277b67023f5e0ba939f74ce775..8644a903e59c7038e8b390d59eb7ecf2c4ed094c 100644
+--- a/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
++++ b/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
+@@ -74,7 +74,9 @@ TabStripComboButton::TabStripComboButton(BrowserWindowInterface* browser,
+           LayoutConstant::kVerticalTabStripFlatEdgeButtonPadding)));
+ 
+   std::unique_ptr<TabStripFlatEdgeButton> start_button;
+-  if (context_ == Context::kVerticalTabStrip ||
++  // Evo's vertical sidebar owns Spaces directly through its bottom selector;
++  // do not expose Chromium's separate Projects/Tab Groups pop-out there.
++  if (context_ == Context::kHorizontalTabStrip &&
+       tabs::kHorizontalTabStripComboButtonShowStartOnly.Get()) {
+     if (projects_panel::IsProjectsPanelVisibleForProfile(
+             browser->GetProfile())) {
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+index 32c64e73c5e2ef5ca5561c349381d35754b72d87..5e97c88517259a4362ca3f7802ee2372d856f114 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -4,8 +4,16 @@
+ 
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
+ 
++#include <algorithm>
++#include <iterator>
++
++#include "base/strings/string_number_conversions.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/layout_constants.h"
++#include "chrome/browser/ui/tabs/tab_group_model.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -13,12 +21,17 @@
+ #include "chrome/browser/ui/views/tabs/new_tab_button.h"
+ #include "chrome/browser/ui/views/tabs/shared/new_tab_button.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
++#include "chrome/common/webui_url_constants.h"
++#include "components/tabs/public/tab_group.h"
+ #include "ui/actions/actions.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/window_open_disposition.h"
+ #include "ui/views/actions/action_view_controller.h"
++#include "ui/views/controls/button/label_button.h"
+ #include "ui/views/controls/menu/menu_runner.h"
+ #include "ui/views/layout/flex_layout_view.h"
+ #include "ui/views/view_class_properties.h"
++#include "url/gurl.h"
+ 
+ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+     tabs::VerticalTabStripStateController* state_controller,
+@@ -26,6 +39,7 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+     BrowserWindowInterface* browser,
+     base::RepeatingClosure record_new_tab_button_pressed)
+     : browser_(browser),
++      tab_strip_model_(browser->GetTabStripModel()),
+       root_action_item_(root_action_item),
+       action_view_controller_(std::make_unique<views::ActionViewController>()) {
+   SetProperty(views::kElementIdentifierKey,
+@@ -43,6 +57,17 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+ 
+   new_tab_button_ = AddChildView(std::move(new_tab_button));
+ 
++  space_buttons_ = AddChildView(std::make_unique<views::FlexLayoutView>());
++  space_buttons_->SetOrientation(views::LayoutOrientation::kHorizontal);
++  space_buttons_->SetCrossAxisAlignment(views::LayoutAlignment::kCenter);
++  space_buttons_->SetInteriorMargin(gfx::Insets::VH(2, 4));
++
++  tab_strip_model_->AddObserver(this);
++  RebuildSpaceButtons();
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&VerticalTabStripBottomContainer::EnsureSpaces,
++                                weak_factory_.GetWeakPtr()));
++
+   OnCollapseStateChanged(state_controller->GetCollapseState());
+   collapsed_state_change_subscription_ =
+       state_controller->RegisterOnCollapseChanged(base::BindRepeating(
+@@ -50,8 +75,217 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+           base::Unretained(this)));
+ }
+ 
+-VerticalTabStripBottomContainer::~VerticalTabStripBottomContainer() = default;
++VerticalTabStripBottomContainer::~VerticalTabStripBottomContainer() {
++  if (tab_strip_model_) {
++    tab_strip_model_->RemoveObserver(this);
++  }
++}
++
++void VerticalTabStripBottomContainer::CreateSpace() {
++  if (!tab_strip_model_) {
++    return;
++  }
++
++  browser_->OpenGURL(GURL(chrome::kChromeUINewTabURL),
++                     WindowOpenDisposition::NEW_FOREGROUND_TAB);
++  const int active_index = tab_strip_model_->active_index();
++  if (active_index == TabStripModel::kNoTab) {
++    return;
++  }
++
++  const tab_groups::TabGroupId group =
++      tab_strip_model_->AddToNewGroup({active_index});
++  TabGroup* tab_group = tab_strip_model_->group_model()->GetTabGroup(group);
++  tab_groups::TabGroupVisualData visual_data = *tab_group->visual_data();
++  visual_data.SetTitle(
++      u"Space " + base::NumberToString16(
++                      tab_strip_model_->group_model()->ListTabGroups().size()));
++  tab_strip_model_->ChangeTabGroupVisuals(group, std::move(visual_data), true);
++  tab_strip_model_->SetFocusedGroup(group);
++  ScheduleSpaceButtonsRebuild();
++}
++
++void VerticalTabStripBottomContainer::EnsureSpaces() {
++  if (!tab_strip_model_ || !tab_strip_model_->group_model()) {
++    return;
++  }
++
++  int space_number = 1;
++  for (const tab_groups::TabGroupId& group_id :
++       tab_strip_model_->group_model()->ListTabGroups()) {
++    TabGroup* group = tab_strip_model_->group_model()->GetTabGroup(group_id);
++    if (group->visual_data()->title().empty()) {
++      tab_groups::TabGroupVisualData visual_data = *group->visual_data();
++      visual_data.SetTitle(u"Space " + base::NumberToString16(space_number));
++      tab_strip_model_->ChangeTabGroupVisuals(group_id, std::move(visual_data),
++                                              true);
++    }
++    ++space_number;
++  }
++
++  std::vector<int> ungrouped_tabs;
++  for (int index = 0; index < tab_strip_model_->count(); ++index) {
++    tabs::TabInterface* tab = tab_strip_model_->GetTabAtIndex(index);
++    if (!tab->IsPinned() && !tab->GetGroup().has_value()) {
++      ungrouped_tabs.push_back(index);
++    }
++  }
++
++  std::optional<tab_groups::TabGroupId> space_to_focus;
++  if (!ungrouped_tabs.empty()) {
++    const tab_groups::TabGroupId group =
++        tab_strip_model_->AddToNewGroup(ungrouped_tabs);
++    TabGroup* tab_group = tab_strip_model_->group_model()->GetTabGroup(group);
++    tab_groups::TabGroupVisualData visual_data = *tab_group->visual_data();
++    visual_data.SetTitle(
++        u"Space " +
++        base::NumberToString16(
++            tab_strip_model_->group_model()->ListTabGroups().size()));
++    tab_strip_model_->ChangeTabGroupVisuals(group, std::move(visual_data),
++                                            true);
++    space_to_focus = group;
++  } else if (!tab_strip_model_->GetFocusedGroup().has_value()) {
++    tabs::TabInterface* active_tab = tab_strip_model_->GetActiveTab();
++    if (active_tab && active_tab->GetGroup().has_value()) {
++      space_to_focus = active_tab->GetGroup();
++    } else {
++      const std::vector<tab_groups::TabGroupId> groups =
++          tab_strip_model_->group_model()->ListTabGroups();
++      if (!groups.empty()) {
++        space_to_focus = groups.front();
++      }
++    }
++  }
++
++  if (space_to_focus.has_value()) {
++    tab_strip_model_->SetFocusedGroup(space_to_focus);
++  }
++  ScheduleSpaceButtonsRebuild();
++}
++
++void VerticalTabStripBottomContainer::SelectSpace(
++    std::optional<tab_groups::TabGroupId> group) {
++  if (!tab_strip_model_) {
++    return;
++  }
++  tab_strip_model_->SetFocusedGroup(group);
++  UpdateSpaceButtonSelection();
++}
++
++void VerticalTabStripBottomContainer::CycleSpace(int direction) {
++  if (!tab_strip_model_ || direction == 0) {
++    return;
++  }
++
++  const std::vector<tab_groups::TabGroupId> groups =
++      tab_strip_model_->group_model()->ListTabGroups();
++  if (groups.empty()) {
++    return;
++  }
++
++  const std::optional<tab_groups::TabGroupId> focused =
++      tab_strip_model_->GetFocusedGroup();
++  int current = 0;
++  if (focused.has_value()) {
++    const auto it = std::ranges::find(groups, focused.value());
++    if (it != groups.end()) {
++      current = static_cast<int>(std::distance(groups.begin(), it));
++    }
++  }
++
++  const int count = static_cast<int>(groups.size());
++  const int next = (current + (direction > 0 ? 1 : -1) + count) % count;
++  SelectSpace(groups[static_cast<size_t>(next)]);
++}
++
++void VerticalTabStripBottomContainer::RebuildSpaceButtons() {
++  space_buttons_rebuild_scheduled_ = false;
++  if (!tab_strip_model_ || !space_buttons_) {
++    return;
++  }
++
++  space_buttons_->RemoveAllChildViews();
++  group_space_buttons_.clear();
++
++  for (const tab_groups::TabGroupId& group :
++       tab_strip_model_->group_model()->ListTabGroups()) {
++    TabGroup* tab_group = tab_strip_model_->group_model()->GetTabGroup(group);
++    std::u16string title = tab_group->visual_data()->title();
++    if (title.empty()) {
++      title = u"Space";
++    }
++
++    auto button = std::make_unique<views::LabelButton>(
++        base::BindRepeating(&VerticalTabStripBottomContainer::SelectSpace,
++                            base::Unretained(this), std::make_optional(group)),
++        u"•");
++    button->SetTooltipText(title);
++    button->SetMinSize(gfx::Size(28, 28));
++    views::LabelButton* button_ptr =
++        space_buttons_->AddChildView(std::move(button));
++    group_space_buttons_.emplace_back(group, button_ptr);
++  }
++
++  auto add_button = std::make_unique<views::LabelButton>(
++      base::BindRepeating(&VerticalTabStripBottomContainer::CreateSpace,
++                          base::Unretained(this)),
++      u"+");
++  add_button->SetTooltipText(u"Create Space");
++  add_button->SetMinSize(gfx::Size(28, 28));
++  space_buttons_->AddChildView(std::move(add_button));
++
++  UpdateSpaceButtonSelection();
++  InvalidateLayout();
++}
++
++void VerticalTabStripBottomContainer::ScheduleSpaceButtonsRebuild() {
++  if (space_buttons_rebuild_scheduled_) {
++    return;
++  }
++  space_buttons_rebuild_scheduled_ = true;
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&VerticalTabStripBottomContainer::RebuildSpaceButtons,
++                     weak_factory_.GetWeakPtr()));
++}
++
++void VerticalTabStripBottomContainer::UpdateSpaceButtonSelection() {
++  if (!tab_strip_model_) {
++    return;
++  }
++
++  const std::optional<tab_groups::TabGroupId> focused =
++      tab_strip_model_->GetFocusedGroup();
++  for (const auto& [group, button] : group_space_buttons_) {
++    button->SetText(focused == group ? u"●" : u"•");
++  }
++}
++
++void VerticalTabStripBottomContainer::OnTabGroupChanged(
++    const TabGroupChange& change) {
++  ScheduleSpaceButtonsRebuild();
++}
++
++void VerticalTabStripBottomContainer::OnTabGroupAdded(
++    const tab_groups::TabGroupId& group_id) {
++  ScheduleSpaceButtonsRebuild();
++}
++
++void VerticalTabStripBottomContainer::OnTabGroupWillBeRemoved(
++    const tab_groups::TabGroupId& group_id) {
++  ScheduleSpaceButtonsRebuild();
++}
++
++void VerticalTabStripBottomContainer::OnTabGroupFocusChanged(
++    std::optional<tab_groups::TabGroupId> new_focused_group_id,
++    std::optional<tab_groups::TabGroupId> old_focused_group_id) {
++  UpdateSpaceButtonSelection();
++}
+ 
++void VerticalTabStripBottomContainer::OnTabStripModelDestroyed(
++    TabStripModel* tab_strip_model) {
++  tab_strip_model_ = nullptr;
++}
+ 
+ bool VerticalTabStripBottomContainer::IsPositionInWindowCaption(
+     const gfx::Point& point) {
+@@ -120,6 +354,7 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
+   SetOrientation(orientation);
+   SetCrossAxisAlignment(collapsed ? views::LayoutAlignment::kStretch
+                                   : views::LayoutAlignment::kStart);
++  space_buttons_->SetOrientation(orientation);
+ 
+   new_tab_button_->SetProperty(
+       views::kFlexBehaviorKey,
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
+index e8ec955ea42e6a7f5124579007b7ce23228bd310..b2cee84fdbc731210976f9c1dbd3efeb39f0ad9e 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
+@@ -5,12 +5,20 @@
+ #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_BOTTOM_CONTAINER_H_
+ #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_BOTTOM_CONTAINER_H_
+ 
++#include <optional>
++#include <utility>
++#include <vector>
++
++#include "base/memory/weak_ptr.h"
++#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
++#include "components/tab_groups/tab_group_id.h"
+ #include "ui/views/context_menu_controller.h"
+ #include "ui/views/layout/flex_layout_view.h"
+ 
+ class BrowserWindowInterface;
+ class ExpandOnHoverLock;
+ class NewTabButtonMenuModel;
++class TabStripModel;
+ class TabStripFlatEdgeButton;
+ 
+ namespace tabs {
+@@ -20,12 +28,14 @@ enum class VerticalTabStripCollapseState;
+ 
+ namespace views {
+ class ActionViewController;
++class LabelButton;
+ class MenuRunner;
+ }  // namespace views
+ 
+ // Bottom container of the vertical tab strip which includes the new tab button.
+ class VerticalTabStripBottomContainer : public views::FlexLayoutView,
+-                                        public views::ContextMenuController {
++                                        public views::ContextMenuController,
++                                        public TabStripModelObserver {
+   METADATA_HEADER(VerticalTabStripBottomContainer, views::View)
+  public:
+   VerticalTabStripBottomContainer(
+@@ -39,6 +49,10 @@ class VerticalTabStripBottomContainer : public views::FlexLayoutView,
+ 
+   void OnCollapseStateChanged(tabs::VerticalTabStripCollapseState state);
+ 
++  // Cycles through the default workspace and each Evo Space. Positive
++  // `direction` moves right; negative moves left.
++  void CycleSpace(int direction);
++
+   // views::ContextMenuController:
+   void ShowContextMenuForViewImpl(
+       View* source,
+@@ -46,13 +60,34 @@ class VerticalTabStripBottomContainer : public views::FlexLayoutView,
+       ui::mojom::MenuSourceType source_type) override;
+ 
+  private:
++  void CreateSpace();
++  void EnsureSpaces();
++  void SelectSpace(std::optional<tab_groups::TabGroupId> group);
++  void RebuildSpaceButtons();
++  void ScheduleSpaceButtonsRebuild();
++  void UpdateSpaceButtonSelection();
++
++  // TabStripModelObserver:
++  void OnTabGroupChanged(const TabGroupChange& change) override;
++  void OnTabGroupAdded(const tab_groups::TabGroupId& group_id) override;
++  void OnTabGroupWillBeRemoved(const tab_groups::TabGroupId& group_id) override;
++  void OnTabGroupFocusChanged(
++      std::optional<tab_groups::TabGroupId> new_focused_group_id,
++      std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
++  void OnTabStripModelDestroyed(TabStripModel* tab_strip_model) override;
++
+   void OnNewTabButtonContextMenuClosed();
+ 
+   void UpdateButtonStyles(bool collapsed);
+ 
+   raw_ptr<BrowserWindowInterface> browser_ = nullptr;
++  raw_ptr<TabStripModel> tab_strip_model_ = nullptr;
+   raw_ptr<actions::ActionItem> root_action_item_ = nullptr;
+   raw_ptr<TabStripFlatEdgeButton> new_tab_button_ = nullptr;
++  raw_ptr<views::FlexLayoutView> space_buttons_ = nullptr;
++  std::vector<std::pair<tab_groups::TabGroupId, raw_ptr<views::LabelButton>>>
++      group_space_buttons_;
++  bool space_buttons_rebuild_scheduled_ = false;
+   base::CallbackListSubscription collapsed_state_change_subscription_;
+   base::CallbackListSubscription new_tab_button_pressed_subscription_;
+ 
+@@ -60,6 +95,7 @@ class VerticalTabStripBottomContainer : public views::FlexLayoutView,
+   std::unique_ptr<views::MenuRunner> context_menu_runner_;
+   std::unique_ptr<views::ActionViewController> action_view_controller_;
+   std::unique_ptr<ExpandOnHoverLock> expand_on_hover_lock_;
++  base::WeakPtrFactory<VerticalTabStripBottomContainer> weak_factory_{this};
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_BOTTOM_CONTAINER_H_
+diff --git a/components/saved_tab_groups/public/features.cc b/components/saved_tab_groups/public/features.cc
+index ac96608ead7fff1b21b6d5034e7e218f6bfc9ff1..118561880223445896a7c30302bbaecb255c508a 100644
+--- a/components/saved_tab_groups/public/features.cc
++++ b/components/saved_tab_groups/public/features.cc
+@@ -45,10 +45,9 @@ BASE_FEATURE(kEnableOriginatingSavedGroupCleanUp,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Whether the projects panel is enabled.
+-// Evo uses Chromium's saved tab groups as its persistent Arc-style Spaces
+-// model. The existing Projects Panel provides the native Views shell, tab
+-// lifecycle integration, drag and drop, and local persistence we need.
+-BASE_FEATURE(kProjectsPanel, base::FEATURE_ENABLED_BY_DEFAULT);
++// Evo Spaces live directly in the vertical sidebar. Chromium's pop-out
++// Projects Panel is a different interaction model, so keep it disabled.
++BASE_FEATURE(kProjectsPanel, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Whether threads should be shown in the projects panel.
+ const base::FeatureParam<bool> kProjectsPanelWithThreads{

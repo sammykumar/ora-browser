@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "chromium": {
+    "checkoutPath": "evo-chromium/src",
+    "baseRevision": "e69b30bba288603e514cffb4c79c359cac68e923",
+    "evoRevision": "76a7e3182c7aec44d311ac23fad25382350a580c",
+    "patchDirectory": "patches/chromium",
+    "patchCount": 12
+  },
+  "components": {
+    "runtime": {
+      "path": "evo-runtime",
+      "repository": "git@github.com:sammykumar/evo-runtime.git",
+      "revision": "e8f64496c78d9258c0cf05875f3591c17cafc033"
+    },
+    "opencode": {
+      "path": "evo-opencode",
+      "repository": "git@github.com:sammykumar/evo-opencode.git",
+      "upstream": "https://github.com/anomalyco/opencode.git",
+      "revision": "04987e99286d880a17b436d51f65e3d52db64cb9"
+    }
+  },
+  "legacy": {
+    "branch": "legacy/webkit",
+    "tag": "webkit-final",
+    "revision": "c11a41981ba764397ce07fcdbe6ebf8f8f12a949"
+  }
+}

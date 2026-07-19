@@ -1,0 +1,173 @@
+From 813a88563288827e74f9c11f3e7e1feb7fa16624 Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 21:08:37 -0500
+Subject: [PATCH 11/12] Fix macOS Sidekick command routing
+
+---
+ chrome/browser/resources/evo_ai/evo_ai.ts     | 11 +++-
+ chrome/browser/ui/views/frame/browser_view.cc | 61 +++++++++++++++++--
+ 2 files changed, 66 insertions(+), 6 deletions(-)
+
+diff --git a/chrome/browser/resources/evo_ai/evo_ai.ts b/chrome/browser/resources/evo_ai/evo_ai.ts
+index 4ecd3d9a70674551bd8c71a038ba181c94763e16..61c41a4eee71b6c86f7302a45a34fa9d327b5838 100644
+--- a/chrome/browser/resources/evo_ai/evo_ai.ts
++++ b/chrome/browser/resources/evo_ai/evo_ai.ts
+@@ -86,6 +86,7 @@ let running = false;
+ let workspaceSessionId = '';
+ let activeAssistant: HTMLElement|null = null;
+ let activeToolStatus: HTMLElement|null = null;
++let pendingSidekickPrompt: SidekickPrompt|undefined;
+ 
+ document.body.dataset['surface'] = surface;
+ document.querySelector<HTMLElement>('#surface-title')!.textContent =
+@@ -277,6 +278,10 @@ async function refreshProviderStatus() {
+     window.setTimeout(() => void refreshProviderStatus(), 1500);
+   } else if (surface === 'workspace') {
+     void loadWorkspaceSessions();
++  } else if (pendingSidekickPrompt) {
++    const pending = pendingSidekickPrompt;
++    pendingSidekickPrompt = undefined;
++    void submitPrompt(pending.prompt);
+   }
+ }
+ 
+@@ -454,7 +459,11 @@ window.receiveEvoSidekickPrompt = (incoming: SidekickPrompt) => {
+   if (readableNode) {
+     readableNode.value = incoming.readableText || '';
+   }
+-  void submitPrompt(incoming.prompt);
++  if (providerAvailable) {
++    void submitPrompt(incoming.prompt);
++  } else {
++    pendingSidekickPrompt = incoming;
++  }
+ };
+ 
+ declare global {
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index fc3e1fe14874d1bb7b6efa8047d742a67ce6dcaf..e4cbf73e32d3c78e42b734e24e785fccae281a70 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -461,7 +461,9 @@ std::u16string SanitizeEvoPageTitle(std::u16string_view title) {
+ 
+ namespace evo {
+ 
+-class CommandBarView : public views::View, public views::TextfieldController {
++class CommandBarView : public views::View,
++                       public views::TextfieldController,
++                       public views::FocusChangeListener {
+   METADATA_HEADER(CommandBarView, views::View)
+ 
+  public:
+@@ -489,6 +491,14 @@ class CommandBarView : public views::View, public views::TextfieldController {
+     textfield_->SetBackgroundColor(ui::kColorSysSurface);
+     textfield_->SetPreferredSize(gfx::Size(kEvoCommandBarWidth - 32, 40));
+ 
++    sidekick_button_ = AddChildView(std::make_unique<views::LabelButton>(
++        base::BindRepeating(&CommandBarView::ActivateModeSuggestion,
++                            base::Unretained(this)),
++        u"Ask Sidekick"));
++    sidekick_button_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
++    sidekick_button_->InsertAfterInFocusList(textfield_);
++    sidekick_button_->SetAccessibleName(u"Ask Sidekick");
++
+     hint_ = AddChildView(std::make_unique<views::Label>(
+         u"Tab to ask Sidekick  ·  Return to open  ·  Esc to close"));
+     hint_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+@@ -496,15 +506,29 @@ class CommandBarView : public views::View, public views::TextfieldController {
+     SetVisible(false);
+   }
+ 
++  ~CommandBarView() override {
++    if (observing_focus_ && GetFocusManager()) {
++      GetFocusManager()->RemoveFocusChangeListener(this);
++    }
++  }
++
+   void Show(const std::u16string& initial_text) {
+     SetSidekickMode(false);
+     textfield_->SetText(initial_text);
+     SetVisible(true);
++    if (!observing_focus_ && GetFocusManager()) {
++      GetFocusManager()->AddFocusChangeListener(this);
++      observing_focus_ = true;
++    }
+     textfield_->RequestFocus();
+     textfield_->SelectAll(false);
+   }
+ 
+   void Hide() {
++    if (observing_focus_ && GetFocusManager()) {
++      GetFocusManager()->RemoveFocusChangeListener(this);
++      observing_focus_ = false;
++    }
+     SetVisible(false);
+     textfield_->SetText(std::u16string());
+     SetSidekickMode(false);
+@@ -519,10 +543,6 @@ class CommandBarView : public views::View, public views::TextfieldController {
+       dismiss_.Run();
+       return true;
+     }
+-    if (event.key_code() == ui::VKEY_TAB) {
+-      SetSidekickMode(!sidekick_mode_);
+-      return true;
+-    }
+     if (event.key_code() == ui::VKEY_RETURN && !sender->GetText().empty()) {
+       submit_.Run(std::u16string(sender->GetText()), sidekick_mode_);
+       return true;
+@@ -530,24 +550,55 @@ class CommandBarView : public views::View, public views::TextfieldController {
+     return false;
+   }
+ 
++  void ToggleSidekickMode() { SetSidekickMode(!sidekick_mode_); }
++
++  void OnDidChangeFocus(views::View* focused_before,
++                        views::View* focused_now) override {
++    if (GetVisible() && focused_before == textfield_ && focused_now &&
++        focused_now != textfield_) {
++      ToggleSidekickMode();
++      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE,
++          base::BindOnce(&CommandBarView::RestoreTextfieldFocus,
++                         weak_ptr_factory_.GetWeakPtr()));
++    }
++  }
++
+  private:
++  void ActivateModeSuggestion() {
++    ToggleSidekickMode();
++    textfield_->RequestFocus();
++  }
++
++  void RestoreTextfieldFocus() {
++    if (GetVisible()) {
++      textfield_->RequestFocus();
++    }
++  }
++
+   void SetSidekickMode(bool enabled) {
+     sidekick_mode_ = enabled;
+     title_->SetText(enabled ? u"EVO COMMAND BAR · SIDEKICK"
+                             : u"EVO COMMAND BAR · NAVIGATE");
+     textfield_->SetPlaceholderText(enabled ? u"Ask Sidekick…"
+                                            : u"Search or enter a URL");
++    sidekick_button_->SetText(enabled ? u"Navigate" : u"Ask Sidekick");
++    sidekick_button_->SetAccessibleName(enabled ? u"Switch to navigation"
++                                                : u"Ask Sidekick");
+     hint_->SetText(
+         enabled ? u"Page title and safe URL attached  ·  Tab to navigate"
+                 : u"Tab to ask Sidekick  ·  Return to open  ·  Esc to close");
+   }
+ 
+   raw_ptr<views::Textfield> textfield_ = nullptr;
++  raw_ptr<views::LabelButton> sidekick_button_ = nullptr;
+   raw_ptr<views::Label> title_ = nullptr;
+   raw_ptr<views::Label> hint_ = nullptr;
+   base::RepeatingCallback<void(const std::u16string&, bool)> submit_;
+   base::RepeatingClosure dismiss_;
+   bool sidekick_mode_ = false;
++  bool observing_focus_ = false;
++  base::WeakPtrFactory<CommandBarView> weak_ptr_factory_{this};
+ };
+ 
+ class ClaudePanelView : public views::View,

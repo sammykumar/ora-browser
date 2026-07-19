@@ -1,0 +1,162 @@
+From b4188fbb9f00eb11eff024060781736546cf68bc Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 15:56:37 -0500
+Subject: [PATCH 02/12] evo: add Spaces and Favorites sidebar foundation
+
+---
+ chrome/app/generated_resources.grd            | 38 +++++++++----------
+ .../saved_tab_groups/public/features.cc       |  5 ++-
+ 2 files changed, 23 insertions(+), 20 deletions(-)
+
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 86731fd1704bc75fd021db98f13e655466579c6b..5a52cdb8e34d46e928b78b8b7d4dda9e0818f5f3 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -10399,13 +10399,13 @@ Keep your key file in a safe place. You will need it to create new versions of y
+       <if expr="use_titlecase">
+         <then>
+           <message name="IDS_VIEW_PROJECTS_PANEL" desc="In Title Case: The tooltip for the button in the top container that shows the projects panel.">
+-            View Organizer
++            View Spaces
+           </message>
+           <message name="IDS_HIDE_PROJECTS_PANEL" desc="In Title Case: The tooltip for the button in the top container that hides the projects panel.">
+-            Hide Organizer
++            Hide Spaces
+           </message>
+           <message name="IDS_TAB_GROUPS_TITLE" desc="In Title Case: The title for the tab groups container in the projects panel.">
+-            Tab Groups
++            Spaces
+           </message>
+           <message name="IDS_RECENT_CHATS_TITLE" desc="In Title Case: The title for the recent chats container in the projects panel.">
+             Recent Chats &amp; Threads
+@@ -10422,13 +10422,13 @@ Keep your key file in a safe place. You will need it to create new versions of y
+         </then>
+         <else>
+           <message name="IDS_VIEW_PROJECTS_PANEL" desc="The tooltip for the button in the top container that shows the projects panel.">
+-            View organizer
++            View spaces
+           </message>
+           <message name="IDS_HIDE_PROJECTS_PANEL" desc="The tooltip for the button in the top container that hides the projects panel.">
+-            Hide organizer
++            Hide spaces
+           </message>
+           <message name="IDS_TAB_GROUPS_TITLE" desc="The title for the tab groups container in the projects panel.">
+-            Tab groups
++            Spaces
+           </message>
+           <message name="IDS_RECENT_CHATS_TITLE" desc="The title for the recent chats container in the projects panel.">
+             Recent chats &amp; threads
+@@ -10445,7 +10445,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
+         </else>
+       </if>
+       <message name="IDS_PROJECTS_PANEL" desc="The name of the projects panel announced by screenreaders." is_accessibility_with_no_ui="true">
+-        Organizer
++        Spaces
+       </message>
+       <message name="IDS_PROJECTS_PANEL_GEMINI_ACTIVITY" desc="The label for the Gemini app activity menu item in the projects panel.">
+         Gemini app activity
+@@ -10454,7 +10454,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
+         AI Mode activity
+       </message>
+       <message name="IDS_TAB_GROUPS_NO_TAB_GROUPS" desc="Text indicating the user has no Tab groups.">
+-        Organize tabs into labeled, color-coded groups for easy access
++        Create a Space to keep related tabs together
+       </message>
+       <message name="IDS_OPEN_GEMINI_THREAD_TOOLTIP" desc="Tooltip for a button that opens a Gemini thread.">
+         Open in Gemini
+@@ -11935,10 +11935,10 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+           Focus this tab
+         </message>
+         <message name="IDS_TAB_CXMENU_PIN_TAB" desc="The label of the tab context menu item for pinning one or more tabs.">
+-          Pin
++          Add to favorites
+         </message>
+         <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="The label of the tab context menu item for unpinning one or more tabs.">
+-          Unpin
++          Remove from favorites
+         </message>
+         <message name="IDS_TAB_CXMENU_SOUND_MUTE_SITE" desc="The label of the tab context menu item for muting one or more sites. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural, =1 {Mute site} other {Mute sites}}
+@@ -12051,10 +12051,10 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+           Focus This Tab
+         </message>
+         <message name="IDS_TAB_CXMENU_PIN_TAB" desc="In Title Case: The label of the tab context menu item for pinning one or more tabs.">
+-          Pin
++          Add to Favorites
+         </message>
+         <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="In Title Case: The label of the tab context menu item for unpinning one or more tabs.">
+-          Unpin
++          Remove from Favorites
+         </message>
+         <message name="IDS_TAB_CXMENU_SOUND_MUTE_SITE" desc="In Title Case: The label of the tab context menu item for muting one or more sites. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural, =1 {Mute Site} other {Mute Sites}}
+@@ -12354,13 +12354,13 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+           {NUM_TABS, plural, =1 {1 tab} other {# tabs}}
+         </message>
+         <message name="IDS_CREATE_NEW_TAB_GROUP" desc="The label of item in Everything menu to create a new tab group.">
+-          Create new tab group
++          Create new Space
+         </message>
+         <message name="IDS_GROUP_UNGROUPED_TABS" desc="The label of item in system context menu to create a new tab group and put all ungrouped tabs in it.">
+           Group all tabs
+         </message>
+         <message name="IDS_SAVED_TAB_GROUPS_MENU" desc="The title of the 'Tab groups' menu in the App Menu.">
+-          Tab groups
++          Spaces
+         </message>
+         <message name="IDS_OPEN_GROUP_IN_BROWSER_MENU" desc="The title of the 'Open group' submenu item in the App Menu.">
+           Open group
+@@ -12375,7 +12375,7 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+           {NUM_TABS, plural, =1 {New tab in 1 tab} other {New tab in # tabs}}
+         </message>
+         <message name="IDS_NEW_TAB_GROUP" desc="The label of a context menu item for creating a new tab group.">
+-          New tab group
++          New Space
+         </message>
+       </if>
+       <if expr="use_titlecase">
+@@ -12383,13 +12383,13 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+           {NUM_TABS, plural, =1 {1 Tab} other {# Tabs}}
+         </message>
+         <message name="IDS_CREATE_NEW_TAB_GROUP" desc="The label of item in Everything menu to create a new tab group.">
+-          Create New Tab Group
++          Create New Space
+         </message>
+         <message name="IDS_GROUP_UNGROUPED_TABS" desc="The label of item in system context menu to create a new tab group and put all ungrouped tabs in it.">
+           Group All Tabs
+         </message>
+         <message name="IDS_SAVED_TAB_GROUPS_MENU" desc="The title of the 'Tab Groups' menu in the App Menu.">
+-          Tab Groups
++          Spaces
+         </message>
+         <message name="IDS_OPEN_GROUP_IN_BROWSER_MENU" desc="The title of the 'Open Group' submenu item in the App Menu.">
+           Open Group
+@@ -15884,10 +15884,10 @@ Please help our engineers fix this problem. Tell us what happened right before y
+           Mute Selected Site
+         </message>
+         <message name="IDS_PIN_TAB_MAC" desc="The Mac menu item for pinning the selected tab(s).">
+-          Pin Tab
++          Add Tab to Favorites
+         </message>
+         <message name="IDS_PIN_TARGET_TAB_MAC" desc="The Mac menu item for pinning the selected tab(s).">
+-          Pin Selected Tab
++          Add Selected Tab to Favorites
+         </message>
+         <message name="IDS_GROUP_TAB_MAC" desc="The Mac menu item for adding the selected tab(s) to a new tab group.">
+           Group Tab
+diff --git a/components/saved_tab_groups/public/features.cc b/components/saved_tab_groups/public/features.cc
+index 4475c91bb5baeb717c99787427711aa05ccbde83..ac96608ead7fff1b21b6d5034e7e218f6bfc9ff1 100644
+--- a/components/saved_tab_groups/public/features.cc
++++ b/components/saved_tab_groups/public/features.cc
+@@ -45,7 +45,10 @@ BASE_FEATURE(kEnableOriginatingSavedGroupCleanUp,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Whether the projects panel is enabled.
+-BASE_FEATURE(kProjectsPanel, base::FEATURE_DISABLED_BY_DEFAULT);
++// Evo uses Chromium's saved tab groups as its persistent Arc-style Spaces
++// model. The existing Projects Panel provides the native Views shell, tab
++// lifecycle integration, drag and drop, and local persistence we need.
++BASE_FEATURE(kProjectsPanel, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Whether threads should be shown in the projects panel.
+ const base::FeatureParam<bool> kProjectsPanelWithThreads{

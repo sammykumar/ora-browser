@@ -1,0 +1,666 @@
+From 3222166c1db5aaf6c201f64b2628ea382f07afa5 Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 16:31:46 -0500
+Subject: [PATCH 04/12] evo: add page-aware AI and MCP entry points
+
+---
+ chrome/app/chrome_command_ids.h               |   3 +
+ chrome/app/generated_resources.grd            |   3 +
+ chrome/browser/resources/BUILD.gn             |   2 +
+ chrome/browser/resources/evo_ai/BUILD.gn      |  14 ++
+ chrome/browser/resources/evo_ai/evo_ai.css    | 147 ++++++++++++++++++
+ chrome/browser/resources/evo_ai/evo_ai.html   |  66 ++++++++
+ chrome/browser/resources/evo_ai/evo_ai.ts     |  26 ++++
+ chrome/browser/ui/tabs/tab_menu_model.cc      |  40 +++++
+ chrome/browser/ui/tabs/tab_menu_model.h       |   1 +
+ .../tabs/projects/projects_panel_view.cc      |  22 +++
+ .../views/tabs/projects/projects_panel_view.h |   1 +
+ chrome/browser/ui/webui/BUILD.gn              |   1 +
+ .../browser/ui/webui/chrome_web_ui_configs.cc |   2 +
+ chrome/browser/ui/webui/evo_ai/BUILD.gn       |  16 ++
+ chrome/browser/ui/webui/evo_ai/evo_ai_ui.cc   |  16 ++
+ chrome/browser/ui/webui/evo_ai/evo_ai_ui.h    |  27 ++++
+ chrome/common/webui_url_constants.h           |   2 +
+ tools/gritsettings/resource_ids.spec          |   4 +
+ 18 files changed, 393 insertions(+)
+ create mode 100644 chrome/browser/resources/evo_ai/BUILD.gn
+ create mode 100644 chrome/browser/resources/evo_ai/evo_ai.css
+ create mode 100644 chrome/browser/resources/evo_ai/evo_ai.html
+ create mode 100644 chrome/browser/resources/evo_ai/evo_ai.ts
+ create mode 100644 chrome/browser/ui/webui/evo_ai/BUILD.gn
+ create mode 100644 chrome/browser/ui/webui/evo_ai/evo_ai_ui.cc
+ create mode 100644 chrome/browser/ui/webui/evo_ai/evo_ai_ui.h
+
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 0f50c4d73e0cf2486e667d3a5ed564c31ba6fb57..bd38a4c8b662819a571ef0c505ad3a8db4fc421d 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -633,6 +633,9 @@
+ #define IDC_OMNIBOX_CONTEXT_SET_MODEL_PRO_NO_GEN_UI           54018
+ #define IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU               54019
+ 
++// Evo AI page-context entry point.
++#define IDC_EVO_AI_TAB_CONTEXT                                54020
++
+ // NOTE: The last valid command value is 57343 (0xDFFF)
+ // See http://msdn.microsoft.com/en-us/library/t2zechd4(VS.71).aspx
+ 
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 5a52cdb8e34d46e928b78b8b7d4dda9e0818f5f3..e422e6817d260498a425ab181dfe0b21d0eef8e7 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -11897,6 +11897,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+       </message>
+ 
+       <!-- Tab Context Menu -->
++      <message name="IDS_EVO_AI_TAB_CONTEXT" desc="The tab context menu item that opens the current page in Evo AI.">
++        Ask Evo about this tab
++      </message>
+       <if expr="not use_titlecase">
+         <message name="IDS_TAB_CXMENU_NEWTABTORIGHT" desc="The label of the 'New Tab to the Right' Tab context menu item. Translate this verbatim, do not localize for RTL languages (we have separate strings for RTL).">
+           New tab to the right
+diff --git a/chrome/browser/resources/BUILD.gn b/chrome/browser/resources/BUILD.gn
+index 66dcefc52441197089ad4189199e15a4585af627..12646c8ca1560b59e3bf59164474a1beb61493c2 100644
+--- a/chrome/browser/resources/BUILD.gn
++++ b/chrome/browser/resources/BUILD.gn
+@@ -325,6 +325,7 @@ group("dev_ui_resources") {
+     "context_hub:resources",
+     "device_log:resources",
+     "engagement:resources",
++    "evo_ai:resources",
+     "family_link_user_internals:resources",
+     "location_internals:resources",
+     "media:resources",
+@@ -407,6 +408,7 @@ repack("dev_ui_paks") {
+     "$root_gen_dir/chrome/context_hub_resources.pak",
+     "$root_gen_dir/chrome/device_log_resources.pak",
+     "$root_gen_dir/chrome/engagement_resources.pak",
++    "$root_gen_dir/chrome/evo_ai_resources.pak",
+     "$root_gen_dir/chrome/family_link_user_internals_resources.pak",
+     "$root_gen_dir/chrome/location_internals_resources.pak",
+     "$root_gen_dir/chrome/media_resources.pak",
+diff --git a/chrome/browser/resources/evo_ai/BUILD.gn b/chrome/browser/resources/evo_ai/BUILD.gn
+new file mode 100644
+index 0000000000000000000000000000000000000000..a05d70cc67d128886b35c21e6c193fd8b9358f34
+--- /dev/null
++++ b/chrome/browser/resources/evo_ai/BUILD.gn
+@@ -0,0 +1,14 @@
++# Copyright 2026 SK Productions LLC
++
++import("//ui/webui/resources/tools/build_webui.gni")
++
++assert(!is_android)
++
++build_webui("build") {
++  grd_prefix = "evo_ai"
++  static_files = [
++    "evo_ai.css",
++    "evo_ai.html",
++  ]
++  ts_files = [ "evo_ai.ts" ]
++}
+diff --git a/chrome/browser/resources/evo_ai/evo_ai.css b/chrome/browser/resources/evo_ai/evo_ai.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..1421bf4a76121462c47cdb8f3f21d51ebfe57638
+--- /dev/null
++++ b/chrome/browser/resources/evo_ai/evo_ai.css
+@@ -0,0 +1,147 @@
++:root {
++  color-scheme: light dark;
++  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
++  --surface: color-mix(in srgb, Canvas 92%, #7759ff 8%);
++  --surface-strong: color-mix(in srgb, Canvas 82%, #7759ff 18%);
++  --border: color-mix(in srgb, CanvasText 14%, transparent);
++  --muted: color-mix(in srgb, CanvasText 62%, transparent);
++  --accent: #7759ff;
++}
++
++* { box-sizing: border-box; }
++
++body {
++  margin: 0;
++  background: Canvas;
++  color: CanvasText;
++}
++
++main {
++  width: min(820px, calc(100% - 40px));
++  margin: 0 auto;
++  padding: 48px 0 72px;
++}
++
++header {
++  display: flex;
++  align-items: center;
++  gap: 18px;
++  margin-bottom: 30px;
++}
++
++.mark {
++  display: grid;
++  place-items: center;
++  width: 54px;
++  height: 54px;
++  border-radius: 16px;
++  color: white;
++  background: linear-gradient(145deg, #9c7cff, #5135d9);
++  font-size: 27px;
++  font-weight: 700;
++  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 34%, transparent);
++}
++
++h1,
++ h2,
++ p { margin: 0; }
++
++h1 { font-size: 30px;
++ letter-spacing: -0.04em; }
++
++h2 { font-size: 15px; }
++
++.eyebrow { color: var(--accent);
++ font-size: 12px;
++ font-weight: 750;
++ letter-spacing: .16em; }
++
++.subtitle { margin-top: 5px;
++ color: var(--muted); }
++
++section {
++  margin-top: 16px;
++  padding: 20px;
++  border: 1px solid var(--border);
++  border-radius: 18px;
++  background: var(--surface);
++}
++
++.section-heading,
++.composer-footer,
++.connection {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 12px;
++}
++
++.pill {
++  padding: 5px 9px;
++  border-radius: 999px;
++  background: var(--surface-strong);
++  color: var(--accent);
++  font-size: 11px;
++  font-weight: 650;
++}
++
++.pill.pending { color: var(--muted); }
++
++.page-title { margin-top: 18px;
++ font-size: 17px;
++ font-weight: 650; }
++
++.page-url { margin-top: 5px;
++ color: var(--muted);
++ font-size: 13px;
++ overflow-wrap: anywhere; }
++
++.suggestions { display: flex;
++ flex-wrap: wrap;
++ gap: 8px;
++ margin: 18px 0 12px; }
++
++button {
++  border: 1px solid var(--border);
++  border-radius: 10px;
++  padding: 8px 12px;
++  background: Canvas;
++  color: CanvasText;
++  font: inherit;
++  cursor: pointer;
++}
++
++button:hover:not(:disabled) { border-color: var(--accent); }
++
++button:disabled { cursor: default;
++ opacity: .48; }
++
++button.primary { background: var(--accent);
++ color: white;
++ border-color: transparent; }
++
++textarea {
++  width: 100%;
++  resize: vertical;
++  border: 1px solid var(--border);
++  border-radius: 12px;
++  padding: 13px;
++  background: Canvas;
++  color: CanvasText;
++  font: inherit;
++}
++
++.composer-footer { margin-top: 10px; }
++
++.composer-footer p,
++.connection p,
++.architecture-note { color: var(--muted);
++ font-size: 12px; }
++
++.connection { margin-top: 18px; }
++
++.connection p { margin-top: 4px; }
++
++.architecture-note { margin-top: 18px;
++ padding-top: 14px;
++ border-top: 1px solid var(--border); }
+diff --git a/chrome/browser/resources/evo_ai/evo_ai.html b/chrome/browser/resources/evo_ai/evo_ai.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a062d1e772aa46a3876a4a80afeb11fcd238a7b
+--- /dev/null
++++ b/chrome/browser/resources/evo_ai/evo_ai.html
+@@ -0,0 +1,66 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1">
++    <title>Evo AI</title>
++    <link rel="stylesheet" href="evo_ai.css">
++  </head>
++  <body>
++    <main>
++      <header>
++        <div class="mark">E</div>
++        <div>
++          <p class="eyebrow">EVO</p>
++          <h1>AI workspace</h1>
++          <p class="subtitle">Page-aware assistance with a local MCP boundary.</p>
++        </div>
++      </header>
++
++      <section class="context-card">
++        <div class="section-heading">
++          <h2>Page context</h2>
++          <span id="context-status" class="pill">No page attached</span>
++        </div>
++        <p id="page-title" class="page-title">Open this page from a tab’s context menu.</p>
++        <p id="page-url" class="page-url"></p>
++      </section>
++
++      <section>
++        <div class="section-heading">
++          <h2>Ask Evo</h2>
++          <span class="pill pending">Provider not configured</span>
++        </div>
++        <div class="suggestions">
++          <button data-prompt="Summarize this page and identify the key decisions.">Summarize</button>
++          <button data-prompt="Explain this page and highlight anything surprising.">Explain</button>
++          <button data-prompt="Extract the actionable next steps from this page.">Next steps</button>
++        </div>
++        <textarea id="prompt" rows="5" placeholder="Ask about the attached page…"></textarea>
++        <div class="composer-footer">
++          <p id="composer-status">The provider adapter will connect here.</p>
++          <button id="run" class="primary" disabled>Run</button>
++        </div>
++      </section>
++
++      <section>
++        <div class="section-heading">
++          <h2>MCP connections</h2>
++          <span class="pill pending">Bridge offline</span>
++        </div>
++        <div class="connection">
++          <div>
++            <strong>Local project tools</strong>
++            <p>stdio and Streamable HTTP servers will appear here.</p>
++          </div>
++          <button disabled>Connect server</button>
++        </div>
++        <p class="architecture-note">
++          UI contract established. The next implementation connects this page
++          to Evo’s provider abstraction and a local MCP client service.
++        </p>
++      </section>
++    </main>
++    <script type="module" src="evo_ai.js"></script>
++  </body>
++</html>
+diff --git a/chrome/browser/resources/evo_ai/evo_ai.ts b/chrome/browser/resources/evo_ai/evo_ai.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..019a9277839b64941d3b4b023314d73d48516103
+--- /dev/null
++++ b/chrome/browser/resources/evo_ai/evo_ai.ts
+@@ -0,0 +1,26 @@
++const params = new URLSearchParams(window.location.search);
++const pageTitle = params.get('title');
++const pageUrl = params.get('url');
++
++if (pageUrl) {
++  const contextStatus = document.querySelector<HTMLElement>('#context-status');
++  const title = document.querySelector<HTMLElement>('#page-title');
++  const url = document.querySelector<HTMLElement>('#page-url');
++  if (contextStatus && title && url) {
++    contextStatus.textContent = 'Page attached';
++    title.textContent = pageTitle || 'Untitled page';
++    url.textContent = pageUrl;
++  }
++}
++
++for (const button of
++     document.querySelectorAll<HTMLButtonElement>('[data-prompt]')) {
++  button.addEventListener('click', () => {
++    const prompt = document.querySelector<HTMLTextAreaElement>('#prompt');
++    const status = document.querySelector<HTMLElement>('#composer-status');
++    if (prompt && status) {
++      prompt.value = button.dataset['prompt'] || '';
++      status.textContent = 'Prompt ready. Configure a provider to run it.';
++    }
++  });
++}
+diff --git a/chrome/browser/ui/tabs/tab_menu_model.cc b/chrome/browser/ui/tabs/tab_menu_model.cc
+index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..e5a36a6c729bca56f878b56b6fbc7962c1b0c5d9 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model.cc
+@@ -12,6 +12,8 @@
+ #include "base/functional/bind.h"
+ #include "base/i18n/rtl.h"
+ #include "base/metrics/user_metrics.h"
++#include "base/strings/strcat.h"
++#include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+@@ -48,6 +50,7 @@
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "chrome/grit/generated_resources.h"
++#include "base/strings/escape.h"
+ #include "components/commerce/core/commerce_constants.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+ #include "components/feed/feed_feature_list.h"
+@@ -434,6 +437,11 @@ void TabMenuModel::Build(int index) {
+             ui::kColorMenuIcon, ui::SimpleMenuModel::kDefaultIconSize));
+   }
+ 
++  AddItemWithStringIdAndIcon(
++      IDC_EVO_AI_TAB_CONTEXT, IDS_EVO_AI_TAB_CONTEXT,
++      ui::ImageModel::FromVectorIcon(kTaskSparkIcon, ui::kColorMenuIcon,
++                                     kTabMenuIconSize));
++
+   const bool will_mute = !AreAllSitesMuted(*tab_strip_, indices);
+   AddItem(TabStripModel::CommandToggleSiteMuted,
+           will_mute ? l10n_util::GetPluralStringFUTF16(
+@@ -603,6 +611,9 @@ bool TabMenuModel::IsItemCheckedAt(size_t index) const {
+ // Overridden to check if the enabled status of the item
+ // should be evaluated by the extension matcher instead of the simple model.
+ bool TabMenuModel::IsEnabledAt(size_t index) const {
++  if (GetCommandIdAt(index) == IDC_EVO_AI_TAB_CONTEXT) {
++    return tab_interface_ && tab_interface_->GetContents();
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   if (auto* matcher = GetMatcherIfExtension(index)) {
+     return matcher->IsCommandIdEnabled(GetCommandIdAt(index));
+@@ -614,6 +625,9 @@ bool TabMenuModel::IsEnabledAt(size_t index) const {
+ // Overridden to check if the visible status of the item
+ // should be evaluated by the extension matcher instead of the simple model.
+ bool TabMenuModel::IsVisibleAt(size_t index) const {
++  if (GetCommandIdAt(index) == IDC_EVO_AI_TAB_CONTEXT) {
++    return true;
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   if (auto* matcher = GetMatcherIfExtension(index)) {
+     return matcher->IsCommandIdVisible(GetCommandIdAt(index));
+@@ -622,6 +636,13 @@ bool TabMenuModel::IsVisibleAt(size_t index) const {
+   return ui::SimpleMenuModel::IsVisibleAt(index);
+ }
+ 
++bool TabMenuModel::IsAlertedAt(size_t index) const {
++  if (GetCommandIdAt(index) == IDC_EVO_AI_TAB_CONTEXT) {
++    return false;
++  }
++  return ui::SimpleMenuModel::IsAlertedAt(index);
++}
++
+ void TabMenuModel::ActivatedAt(size_t index) {
+   ActivatedAt(index, 0);
+ }
+@@ -629,6 +650,25 @@ void TabMenuModel::ActivatedAt(size_t index) {
+ // Overridden to execute core context menu command logic on activation for
+ // extension items.
+ void TabMenuModel::ActivatedAt(size_t index, int event_flags) {
++  if (GetCommandIdAt(index) == IDC_EVO_AI_TAB_CONTEXT) {
++    content::WebContents* web_contents =
++        tab_interface_ ? tab_interface_->GetContents() : nullptr;
++    BrowserWindowInterface* browser =
++        tab_strip_->delegate()->GetBrowserWindowInterface();
++    if (web_contents && browser) {
++      const std::string context_url = base::StrCat(
++          {chrome::kChromeUIEvoAIURL, "?url=",
++           base::EscapeQueryParamValue(
++               web_contents->GetLastCommittedURL().spec(), true),
++           "&title=",
++           base::EscapeQueryParamValue(
++               base::UTF16ToUTF8(web_contents->GetTitle()), true)});
++      browser->OpenGURL(GURL(context_url),
++                        WindowOpenDisposition::SINGLETON_TAB);
++    }
++    return;
++  }
++
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   if (auto* matcher = GetMatcherIfExtension(index)) {
+     content::WebContents* web_contents =
+diff --git a/chrome/browser/ui/tabs/tab_menu_model.h b/chrome/browser/ui/tabs/tab_menu_model.h
+index 61fa9227af24925bdfbddbe7b4df323f1dc04ff4..768274944838cf5195c1ee43556dac2c3b7d18f7 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model.h
++++ b/chrome/browser/ui/tabs/tab_menu_model.h
+@@ -64,6 +64,7 @@ class TabMenuModel : public ui::SimpleMenuModel {
+   bool IsItemCheckedAt(size_t index) const override;
+   bool IsEnabledAt(size_t index) const override;
+   bool IsVisibleAt(size_t index) const override;
++  bool IsAlertedAt(size_t index) const override;
+   void ActivatedAt(size_t index) override;
+   void ActivatedAt(size_t index, int event_flags) override;
+ 
+diff --git a/chrome/browser/ui/views/tabs/projects/projects_panel_view.cc b/chrome/browser/ui/views/tabs/projects/projects_panel_view.cc
+index 03bd66763dff377aefb6cd64b4cda926ea523db4..7dc11d7c4745b20ad53c211f4db2103d9cca9d50 100644
+--- a/chrome/browser/ui/views/tabs/projects/projects_panel_view.cc
++++ b/chrome/browser/ui/views/tabs/projects/projects_panel_view.cc
+@@ -40,6 +40,7 @@
+ #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
+ #include "chrome/common/url_constants.h"
++#include "chrome/common/webui_url_constants.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/contextual_tasks/public/contextual_task.h"
+ #include "components/saved_tab_groups/public/features.h"
+@@ -59,6 +60,7 @@
+ #include "ui/views/controls/button/button.h"
+ #include "ui/views/controls/button/image_button_factory.h"
+ #include "ui/views/controls/button/label_button.h"
++#include "ui/views/controls/button/md_text_button.h"
+ #include "ui/views/controls/button/menu_button.h"
+ #include "ui/views/controls/image_view.h"
+ #include "ui/views/controls/label.h"
+@@ -285,6 +287,20 @@ ProjectsPanelView::ProjectsPanelView(
+   SetListTitleProperties(*groups_list_title);
+   SetListTitleContainerProperties(*groups_list_title);
+ 
++  auto* evo_ai_button =
++      tab_groups_container_->AddChildView(std::make_unique<views::MdTextButton>(
++          base::BindRepeating(&ProjectsPanelView::OnEvoAIButtonPressed,
++                              base::Unretained(this)),
++          u"Open Evo AI"));
++  evo_ai_button->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(kTaskSparkIcon,
++                                     kColorProjectsPanelButtonIcon,
++                                     kCreateNewTabGroupIconSize));
++  evo_ai_button->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++  evo_ai_button->SetProperty(views::kMarginsKey,
++                             kProjectsPanelRegionHorizontalMargins);
++
+   create_new_tab_group_button_ = tab_groups_container_->AddChildView(
+       std::make_unique<ProjectsPanelNewTabGroupButton>(base::BindRepeating(
+           &ProjectsPanelView::OnCreateNewTabGroupButtonPressed,
+@@ -846,6 +862,12 @@ void ProjectsPanelView::OnTabGroupDragExited() {
+   tab_groups_drag_scroll_handler_.StopScrolling();
+ }
+ 
++void ProjectsPanelView::OnEvoAIButtonPressed() {
++  browser_->OpenGURL(GURL(chrome::kChromeUIEvoAIURL),
++                     WindowOpenDisposition::SINGLETON_TAB);
++  ClosePanel();
++}
++
+ void ProjectsPanelView::ExecuteCommand(int command_id, int event_flags) {
+   GURL activity_url;
+   switch (command_id) {
+diff --git a/chrome/browser/ui/views/tabs/projects/projects_panel_view.h b/chrome/browser/ui/views/tabs/projects/projects_panel_view.h
+index e3090b1f09fd24b27d2abcc4d87baf1905d430d8..845bff9af80eef671f467fae5755c1791f548d59 100644
+--- a/chrome/browser/ui/views/tabs/projects/projects_panel_view.h
++++ b/chrome/browser/ui/views/tabs/projects/projects_panel_view.h
+@@ -166,6 +166,7 @@ class ProjectsPanelView : public views::View,
+   void OnThreadsActivityMenuButtonPressed();
+   void OnTabGroupMoved(const base::Uuid& group_guid, int new_index);
+   void OnCreateNewTabGroupButtonPressed();
++  void OnEvoAIButtonPressed();
+   void OnThreadButtonPressed(const std::string& thread_server_id,
+                              contextual_tasks::ThreadType thread_type);
+   void OnTabGroupDragUpdated(const gfx::Point& location);
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 70818ce2da0e8e5fc9e79ac54fb2f1a37fdcd28b..b769f13dcf314af0aaf0250296135c2cd6f98a68 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -72,6 +72,7 @@ source_set("configs") {
+     "//chrome/browser/ui/webui/device_log",
+     "//chrome/browser/ui/webui/download_internals",
+     "//chrome/browser/ui/webui/engagement",
++    "//chrome/browser/ui/webui/evo_ai",
+     "//chrome/browser/ui/webui/family_link_user_internals",
+     "//chrome/browser/ui/webui/flags",
+     "//chrome/browser/ui/webui/history_clusters",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index bced2aebb34959189b91da490d27d1b5a9b19e3c..0b983459b50dd25f2519e5bbbe04590af06dc372 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -29,6 +29,7 @@
+ #include "chrome/browser/ui/webui/device_log/device_log_ui.h"
+ #include "chrome/browser/ui/webui/download_internals/download_internals_ui.h"
+ #include "chrome/browser/ui/webui/engagement/site_engagement_ui.h"
++#include "chrome/browser/ui/webui/evo_ai/evo_ai_ui.h"
+ #include "chrome/browser/ui/webui/family_link_user_internals/family_link_user_internals_ui.h"
+ #include "chrome/browser/ui/webui/flags/flags_ui.h"
+ #include "chrome/browser/ui/webui/gcm_internals_ui.h"
+@@ -270,6 +271,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<CreditsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<DataSharingInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<DownloadInternalsUIConfig>());
++  map.AddWebUIConfig(std::make_unique<EvoAIUIConfig>());
+   map.AddWebUIConfig(std::make_unique<FamilyLinkUserInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<FlagsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<glic::GlicUIConfig>());
+diff --git a/chrome/browser/ui/webui/evo_ai/BUILD.gn b/chrome/browser/ui/webui/evo_ai/BUILD.gn
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a21eb16f6fdfe56c4d365504382c4d72e323ef0
+--- /dev/null
++++ b/chrome/browser/ui/webui/evo_ai/BUILD.gn
+@@ -0,0 +1,16 @@
++# Copyright 2026 SK Productions LLC
++
++source_set("evo_ai") {
++  sources = [
++    "evo_ai_ui.cc",
++    "evo_ai_ui.h",
++  ]
++
++  deps = [
++    "//chrome/browser/profiles:profile",
++    "//chrome/browser/resources/evo_ai:resources",
++    "//chrome/common",
++    "//content/public/browser",
++    "//ui/webui",
++  ]
++}
+diff --git a/chrome/browser/ui/webui/evo_ai/evo_ai_ui.cc b/chrome/browser/ui/webui/evo_ai/evo_ai_ui.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..51ec43223407b3e94bf2fdb0b64d75764ae70d7f
+--- /dev/null
++++ b/chrome/browser/ui/webui/evo_ai/evo_ai_ui.cc
+@@ -0,0 +1,16 @@
++// Copyright 2026 SK Productions LLC
++
++#include "chrome/browser/ui/webui/evo_ai/evo_ai_ui.h"
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/grit/evo_ai_resources.h"
++#include "chrome/grit/evo_ai_resources_map.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/webui/webui_util.h"
++
++EvoAIUI::EvoAIUI(content::WebUI* web_ui) : WebUIController(web_ui) {
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      Profile::FromWebUI(web_ui), chrome::kChromeUIEvoAIHost);
++  webui::SetupWebUIDataSource(source, kEvoAiResources, IDR_EVO_AI_EVO_AI_HTML);
++}
+diff --git a/chrome/browser/ui/webui/evo_ai/evo_ai_ui.h b/chrome/browser/ui/webui/evo_ai/evo_ai_ui.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f5549c539f258d102a0b9e2034e057fecc77686
+--- /dev/null
++++ b/chrome/browser/ui/webui/evo_ai/evo_ai_ui.h
+@@ -0,0 +1,27 @@
++// Copyright 2026 SK Productions LLC
++
++#ifndef CHROME_BROWSER_UI_WEBUI_EVO_AI_EVO_AI_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_EVO_AI_EVO_AI_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++
++class EvoAIUI;
++
++class EvoAIUIConfig : public content::DefaultWebUIConfig<EvoAIUI> {
++ public:
++  EvoAIUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUIEvoAIHost) {}
++};
++
++class EvoAIUI : public content::WebUIController {
++ public:
++  explicit EvoAIUI(content::WebUI* web_ui);
++  EvoAIUI(const EvoAIUI&) = delete;
++  EvoAIUI& operator=(const EvoAIUI&) = delete;
++  ~EvoAIUI() override = default;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_EVO_AI_EVO_AI_UI_H_
+diff --git a/chrome/common/webui_url_constants.h b/chrome/common/webui_url_constants.h
+index 8288814da7d14fbe6cae7f6a518053fb824a9a00..edd562d5e0083fda20fde460e2aba17706b3c2d0 100644
+--- a/chrome/common/webui_url_constants.h
++++ b/chrome/common/webui_url_constants.h
+@@ -86,6 +86,8 @@ inline constexpr char kChromeUIComponentsUrl[] = "chrome://components";
+ inline constexpr char kChromeUIConflictsHost[] = "conflicts";
+ inline constexpr char kChromeUIConnectorsInternalsHost[] =
+     "connectors-internals";
++inline constexpr char kChromeUIEvoAIHost[] = "evo-ai";
++inline constexpr char kChromeUIEvoAIURL[] = "chrome://evo-ai/";
+ inline constexpr char kChromeUIConstrainedHTMLTestHost[] = "constrained-test";
+ inline constexpr char kChromeUIConstrainedHTMLTestURL[] =
+     "chrome://constrained-test/";
+diff --git a/tools/gritsettings/resource_ids.spec b/tools/gritsettings/resource_ids.spec
+index 9d8b4ade5aff13eb00892614ad7b309805f00ec2..e4405fc5b815bf94088bfbc5c1650f17e3f957ea 100644
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -489,6 +489,10 @@
+     "META": {"sizes": {"includes": [5],}},
+     "includes": [3900],
+   },
++  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/evo_ai/resources.grd": {
++    "META": {"sizes": {"includes": [10]}},
++    "includes": [3910],
++  },
+   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/extensions/resources.grd": {
+     "META": {"sizes": {"includes": [120],}},
+     "includes": [3920],

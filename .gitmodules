@@ -1,0 +1,8 @@
+[submodule "evo-runtime"]
+	path = evo-runtime
+	url = git@github.com:sammykumar/evo-runtime.git
+	branch = codex/runtime-foundation
+[submodule "evo-opencode"]
+	path = evo-opencode
+	url = git@github.com:sammykumar/evo-opencode.git
+	branch = codex/evo-provider-v1.17.7

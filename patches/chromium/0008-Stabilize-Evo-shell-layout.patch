@@ -1,0 +1,198 @@
+From 5daec047f7ef002a4c9c7338b7fd9299dc0c9f33 Mon Sep 17 00:00:00 2001
+From: Sam Kumar <sammy.kumar@icloud.com>
+Date: Sat, 18 Jul 2026 17:58:58 -0500
+Subject: [PATCH 08/12] Stabilize Evo shell layout
+
+---
+ chrome/browser/ui/views/frame/browser_view.cc | 87 +++++++------------
+ .../views/frame/layout/browser_view_layout.h  |  2 +
+ .../layout/browser_view_tabbed_layout_impl.cc | 37 ++++++++
+ 3 files changed, 69 insertions(+), 57 deletions(-)
+
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 9cfe3de902ab417b2b1b2408375d504e0f77624a..3cecfaec7dcb5f9e86be8273d5402e961e79d21a 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -438,8 +438,6 @@ void RecordTabLoadingSmoothness(int smoothness) {
+ // See SetDisableRevealerDelayForTesting().
+ bool g_disable_revealer_delay_for_testing = false;
+ 
+-constexpr int kEvoRightRailWidth = 48;
+-constexpr int kEvoClaudePanelWidth = 352;
+ constexpr int kEvoCommandBarWidth = 620;
+ 
+ }  // namespace
+@@ -1190,26 +1188,26 @@ BrowserView::BrowserView(Browser* browser)
+   window_scrim_view_ = AddChildView(std::make_unique<ScrimView>());
+   window_scrim_view_->layer()->SetName("WindowScrimView");
+ 
+-  // Evo's right rail is permanent browser chrome. Its Claude panel and command
+-  // bar are intentionally native Views so extensions and WebContents continue
+-  // to run in an unmodified Chromium content surface.
+-  evo_right_rail_ = AddChildView(std::make_unique<evo::RightRailView>(
+-      base::BindRepeating(&BrowserView::ToggleEvoClaudePanel,
+-                          base::Unretained(this)),
+-      base::BindRepeating(&BrowserView::OpenEvoAI, base::Unretained(this))));
+-  evo_right_rail_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+-
+-  evo_claude_panel_ =
+-      AddChildView(std::make_unique<evo::ClaudePanelView>(base::BindRepeating(
+-          &BrowserView::ToggleEvoClaudePanel, base::Unretained(this))));
+-  evo_claude_panel_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+-
+-  evo_command_bar_ = AddChildView(std::make_unique<evo::CommandBarView>(
+-      base::BindRepeating(&BrowserView::SubmitEvoCommand,
+-                          base::Unretained(this)),
+-      base::BindRepeating(&BrowserView::HideEvoCommandBar,
+-                          base::Unretained(this))));
+-  evo_command_bar_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++  if (GetIsNormalType()) {
++    // Evo's right rail is permanent browser chrome. Its Claude panel and
++    // command bar are native Views so extensions and WebContents continue to
++    // run in an unmodified Chromium content surface.
++    evo_right_rail_ = AddChildView(std::make_unique<evo::RightRailView>(
++        base::BindRepeating(&BrowserView::ToggleEvoClaudePanel,
++                            base::Unretained(this)),
++        base::BindRepeating(&BrowserView::OpenEvoAI, base::Unretained(this))));
++
++    evo_claude_panel_ =
++        AddChildView(std::make_unique<evo::ClaudePanelView>(base::BindRepeating(
++            &BrowserView::ToggleEvoClaudePanel, base::Unretained(this))));
++
++    evo_command_bar_ = AddChildView(std::make_unique<evo::CommandBarView>(
++        base::BindRepeating(&BrowserView::SubmitEvoCommand,
++                            base::Unretained(this)),
++        base::BindRepeating(&BrowserView::HideEvoCommandBar,
++                            base::Unretained(this))));
++    evo_command_bar_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++  }
+ 
+ #if BUILDFLAG(IS_WIN)
+   // Create a custom JumpList and add it to an observer of TabRestoreService
+@@ -4947,41 +4945,14 @@ void BrowserView::Layout(PassKey) {
+ 
+   LayoutSuperclass<views::View>(this);
+ 
+-  if (evo_right_rail_ && contents_container_) {
+-    gfx::Rect original_contents_bounds = contents_container_->bounds();
+-    const int panel_width = evo_claude_panel_->GetVisible()
+-                                ? std::min(kEvoClaudePanelWidth,
+-                                           original_contents_bounds.width() / 2)
+-                                : 0;
+-    const int shell_width = kEvoRightRailWidth + panel_width;
+-    if (original_contents_bounds.width() > shell_width) {
+-      gfx::Rect web_contents_bounds = original_contents_bounds;
+-      web_contents_bounds.set_width(original_contents_bounds.width() -
+-                                    shell_width);
+-      contents_container_->SetBoundsRect(web_contents_bounds);
+-
+-      if (panel_width) {
+-        evo_claude_panel_->SetBounds(web_contents_bounds.right(),
+-                                     original_contents_bounds.y(), panel_width,
+-                                     original_contents_bounds.height());
+-      } else {
+-        evo_claude_panel_->SetBounds(0, 0, 0, 0);
+-      }
+-      evo_right_rail_->SetBounds(
+-          original_contents_bounds.right() - kEvoRightRailWidth,
+-          original_contents_bounds.y(), kEvoRightRailWidth,
+-          original_contents_bounds.height());
+-    }
+-
+-    if (evo_command_bar_->GetVisible()) {
+-      const int command_width =
+-          std::min(kEvoCommandBarWidth, contents_container_->width() - 40);
+-      const int command_height = evo_command_bar_->GetPreferredSize().height();
+-      evo_command_bar_->SetBounds(
+-          contents_container_->x() +
+-              (contents_container_->width() - command_width) / 2,
+-          contents_container_->y() + 32, command_width, command_height);
+-    }
++  if (evo_command_bar_ && evo_command_bar_->GetVisible()) {
++    const int command_width =
++        std::min(kEvoCommandBarWidth, contents_container_->width() - 40);
++    const int command_height = evo_command_bar_->GetPreferredSize().height();
++    evo_command_bar_->SetBounds(
++        contents_container_->x() +
++            (contents_container_->width() - command_width) / 2,
++        contents_container_->y() + 32, command_width, command_height);
+   }
+ 
+   // TODO(jamescook): Why was this in the middle of layout code?
+@@ -5176,6 +5147,8 @@ void BrowserView::AddedToWidget() {
+   layout_views.contents_container = contents_container_;
+   layout_views.multi_contents_view = multi_contents_view_;
+   layout_views.side_panel = side_panel_;
++  layout_views.evo_right_rail = evo_right_rail_;
++  layout_views.evo_claude_panel = evo_claude_panel_;
+   layout_views.top_container_separator = top_container_separator_;
+   // LINT.ThenChange(//chrome/browser/ui/views/frame/layout/browser_view_layout.h:BrowserViewLayoutViews)
+ 
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_layout.h b/chrome/browser/ui/views/frame/layout/browser_view_layout.h
+index 4d5b544dffe675594cfece613564a217ea7c1fba..61bc341c1ed842e9a0584719568f781a387b93e5 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_layout.h
++++ b/chrome/browser/ui/views/frame/layout/browser_view_layout.h
+@@ -75,6 +75,8 @@ struct BrowserViewLayoutViews {
+   raw_ptr<views::View> contents_container = nullptr;
+   raw_ptr<MultiContentsView> multi_contents_view = nullptr;
+   raw_ptr<SidePanel> side_panel = nullptr;
++  raw_ptr<views::View> evo_right_rail = nullptr;
++  raw_ptr<views::View> evo_claude_panel = nullptr;
+   raw_ptr<views::View> side_panel_animation_content = nullptr;
+ 
+   // The contents separator used for when the top container is overlaid.
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index 9d8905577913459b0b1abfc9f24bc2ace2c6d8e9..88a788d9db434a4d92f6721fe94f30274b90567c 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -49,6 +49,9 @@
+ 
+ namespace {
+ 
++constexpr int kEvoRightRailWidth = 48;
++constexpr int kEvoClaudePanelWidth = 352;
++
+ // Minimum area next to caption buttons to use as a grab handle.
+ constexpr int kVerticalTabsGrabHandleSize = 40;
+ 
+@@ -1042,6 +1045,40 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     layout.AddChild(views().infobar_container, infobar_bounds, infobar_visible);
+   }
+ 
++  // Evo's right rail and Claude panel are part of the proposed layout rather
++  // than post-layout adjustments. Reserving their width here prevents the web
++  // contents from briefly painting at full width and snapping horizontally on
++  // subsequent layout passes.
++  if (IsParentedTo(views().evo_right_rail, views().browser_view)) {
++    const int rail_width =
++        std::min(kEvoRightRailWidth, params.visual_client_area.width());
++    const gfx::Rect rail_bounds(params.visual_client_area.right() - rail_width,
++                                params.visual_client_area.y(), rail_width,
++                                params.visual_client_area.height());
++    layout.AddChild(views().evo_right_rail, rail_bounds, true);
++    params.InsetHorizontal(rail_width, /*leading=*/false);
++
++    int panel_width = 0;
++    const bool panel_visible =
++        IsParentedTo(views().evo_claude_panel, views().browser_view) &&
++        views().evo_claude_panel->GetVisible();
++    if (IsParentedTo(views().evo_claude_panel, views().browser_view)) {
++      panel_width = panel_visible
++                        ? std::min(kEvoClaudePanelWidth,
++                                   params.visual_client_area.width() / 2)
++                        : 0;
++      const gfx::Rect panel_bounds(
++          params.visual_client_area.right() - panel_width,
++          params.visual_client_area.y(), panel_width,
++          params.visual_client_area.height());
++      layout.AddChild(views().evo_claude_panel, panel_bounds, panel_visible);
++      params.InsetHorizontal(panel_width, /*leading=*/false);
++    }
++
++    unclipped_contents_region.Inset(
++        gfx::Insets::TLBR(0, 0, 0, rail_width + panel_width));
++  }
++
+   // Top separator is unnecessary when already in the shadow box; this is
+   // especially obvious in split view, where turning the separator off provides
+   // the required top padding.
